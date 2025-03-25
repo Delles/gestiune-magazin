@@ -1,0 +1,138 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project: Inventory Management System
+
+This project is an Inventory Management System built using Next.js 15, React 19, and Supabase. It provides a user interface for managing inventory, sales, suppliers, and financial data.
+
+# Tech Stack:
+
+- Next.js 15: Framework (App Router)
+- React 19: UI Library
+- Shadcn UI: UI Component Library (Tailwind CSS based)  - package name is shadcn and NOT shadcn-ui . so we shoull use npx shadcn add and not npx shadcn-ui add
+- Tailwind CSS: Styling (utility-first)
+- TanStack Query: Data Fetching and Server State Management
+- TanStack Forms: Form Management
+- TanStack Table: Headless Table Implementation
+- Zod: Schema Validation (integrated with TanStack Forms)
+- Supabase: Backend (PostgreSQL, authentication, storage) - you have read-only access using query(tool). Any modification provide sql code for manually insert into sql editor
+- date-fns: Date/Time Manipulation
+- lucide-react: Icons
+- TypeScript: Type Safety (Strict Mode)
+
+# Key Principles:
+
+- **Type Safety:** Strict TypeScript usage throughout. No `any` types allowed. Use `unknown` when necessary, but prefer specific types or interfaces.
+- **Component-Based UI:** Build UI using composable, reusable Shadcn UI components.
+- **Server-Side Rendering (SSR) / Static Site Generation (SSG):** Leverage Next.js's capabilities for optimal performance.
+- **Data Consistency:** TanStack Query for all data fetching and mutations. Invalidate queries after mutations.
+- **Form Validation:** Zod schemas for all forms, integrated with TanStack Forms.
+- **Database Security:** Supabase Row Level Security (RLS) is mandatory for all tables.
+- **Code Style:** Consistent formatting, naming conventions, and file structure.
+
+# TypeScript Rules
+
+- RULE 1:  *Strict Mode:*  Always use TypeScript's strict mode (`"strict": true` in `tsconfig.json`).
+- RULE 2:  *No `any`:*  Absolutely no use of the `any` type.  Use `unknown` if the type is truly unknown, but then narrow it down with type guards. Prefer specific types, interfaces, or type aliases.
+- RULE 3: *Type Inference:* Leverage TypeScript's type inference where possible.  Don't explicitly define types when the compiler can infer them correctly.  *Example: `const count = 0;` (no need for `: number`) But be explicit with complex types.*
+- RULE 4: *Interfaces for Objects:* Use interfaces to define the shape of objects and component props. *Example: `interface Product { id: string; name: string; price: number; }`*
+- RULE 5: *Type Aliases for Unions/Intersections:* Use type aliases for complex types created with unions (`|`) or intersections (`&`). *Example: `type ProductId = string | number;`*
+- RULE 6: *Generics:* Use generics to create reusable and type-safe components and functions that work with various types.  Ensure generic type parameters are always used.
+- RULE 7: *Avoid `Number`, `String`, `Boolean`, `Symbol`, `Object`*: Use lowercase `number`, `string`, `boolean`, `symbol`, and `object` instead of their uppercase counterparts, which refer to boxed objects.
+- RULE 8: *Callback Return Types*: Do *not* use `any` as the return type for callbacks whose values are ignored.  Use `void` if the return value is intentionally ignored.
+- RULE 9: *Explicit `unknown`*: If a type is truly unknown at a certain point, use `unknown` rather than `any`.  Then, use type guards (e.g., `typeof`, `instanceof`) to narrow the type before using the value.
+- RULE 10: *Consistent Types*: Maintain consistency between Supabase database types, Zod schemas, and TypeScript interfaces. Use the Supabase CLI to generate types from your database schema.
+
+# Styling Rules
+
+- RULE 11: *Tailwind First:* Use Tailwind CSS utility classes exclusively for styling. No custom CSS files or `style` props.
+- RULE 12: *Shadcn UI Components:* Use Shadcn UI components as the primary building blocks for all UI elements. Copy and paste components from the Shadcn UI documentation - just use them into the files , we will add later 
+- RULE 13: *Customize via Classes:* Customize Shadcn UI components only by adding or modifying Tailwind CSS classes. Do not directly edit the component's internal JSX.
+- RULE 14: *Responsiveness:* Use Tailwind's responsive modifiers (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) for all responsive styling.
+- RULE 15: *Consistent Design System:* Maintain consistent spacing, typography, and colors using Tailwind's configuration and Shadcn UI's theming.
+- RULE 16: *Dark Mode:* Ensure all components and styles support Shadcn UI's dark mode.
+
+# React Component Rules
+
+- RULE 17: *Functional Components:* All components must be functional components using React Hooks. No class components.
+- RULE 18: *Hooks:* Use React Hooks (`useState`, `useEffect`, `useContext`, etc.) for state, side effects, and context.
+- RULE 19: *Component Composition:* Break down complex UI into smaller, reusable components.
+- RULE 20: *Props Typing:*  Define TypeScript interfaces for *all* component props.
+- RULE 21: *`use client` Sparingly:* Minimize the use of `'use client'` directives. Prefer Server Components where possible for improved performance. Use client components only when necessary for interactivity or browser-only APIs.
+- RULE 22: *No Inline Styles:* Do not use the `style` prop for styling.  Use Tailwind CSS classes exclusively.
+
+# Data Fetching Rules (TanStack Query)
+
+- RULE 23: *TanStack Query Exclusively:* Use TanStack Query (`useQuery`, `useMutation`) for all data fetching. No direct `fetch` or `axios` calls.
+- RULE 24: *Query Key Structure:* Use array-based query keys: `['entity', 'identifier', { filters }]`.  *Example: `['products', productId]`*
+- RULE 25: *Data Transformations:* Perform data transformations within `useQuery`'s `select` option or in separate helper functions.
+- RULE 26: *Mutations:* Use `useMutation` for create/update/delete. Invalidate queries after mutations.  *Example: `queryClient.invalidateQueries(['products'])`*
+- RULE 27: *Loading/Error Handling:* Use TanStack Query's `isLoading`, `isFetching`, `isError`, and `error` for UI feedback.
+- RULE 28: *Type-Safe Queries:* Provide type parameters to `useQuery` and `useMutation` to ensure type safety.  *Example: `useQuery<Product[], Error>(...)`*.
+- RULE 29: *`skipToken` for Conditional Queries:* Use `skipToken` to disable queries when necessary, while maintaining type safety.
+
+# Form Rules (TanStack Forms & Zod)
+
+- RULE 30: *TanStack Forms:* Use TanStack Forms (`useForm`) for all form management.
+- RULE 31: *Zod Schemas:* Define Zod schemas for all form validation. Use `@tanstack/zod-form-adapter`.
+- RULE 32: *Shadcn UI Form Components:* Use Shadcn UI components for form inputs. Use `useController`.
+- RULE 33: *Error Display:* Display errors using `formState.errors`. Style error messages consistently.
+- RULE 34: *Type-Safe Forms:* Ensure Zod schemas and form field types are consistent with TypeScript interfaces.
+
+# Table Rules (TanStack Table)
+
+- RULE 35: *TanStack Table:* Use TanStack Table for all tables. No direct `<table>` tags.
+- RULE 36: *Column Definitions:* Define column definitions separately. Specify `header`, `accessorKey` (or `accessorFn`).
+- RULE 37: *Features via Props:* Use TanStack Table's props for sorting, filtering, and pagination.
+
+# Database Rules (Supabase)
+
+- RULE 38: *Supabase Client:* Use `@supabase/supabase-js` for all Supabase interactions.
+- RULE 39: *API Routes:* Use Next.js API Routes (`/app/api`) for backend logic and database interactions. Do *not* access Supabase directly from client components.
+- RULE 40: *Row Level Security (RLS):*  Enable and configure RLS policies in Supabase for all tables.  This is mandatory.
+- RULE 41: *Secure Supabase SQL:*  When writing or suggesting SQL code for Supabase (especially for functions and triggers), adhere to secure coding practices.  Specifically:**
+    - **Fixed `search_path`:**  Always explicitly set the `search_path` to `$user,public` within function definitions to prevent privilege escalation vulnerabilities.  *Example: `CREATE FUNCTION my_function() SECURITY DEFINER SET search_path = '$user', public ...`*
+    - **Principle of Least Privilege:** Grant only the necessary permissions to database roles and functions. Avoid using `SECURITY DEFINER` unless absolutely necessary and with extreme caution.
+    - **Input Validation & Sanitization:**  Sanitize all user inputs in SQL queries to prevent SQL injection vulnerabilities. Use parameterized queries or prepared statements whenever possible (though less relevant for agent-suggested manual SQL, but important to keep in mind for backend API logic).
+    - **Audit Logging:** Consider implementing audit logging for critical database operations.
+    - **Regular Security Reviews:**  Conduct regular security reviews of database schema, functions, and RLS policies.
+- RULE 42: *Error Handling with Supabase* Handle the `error` that could be returned within the Supabase response.
+
+# Code Organization Rules
+
+- RULE 43: *File Structure:* Maintain a consistent file structure:
+"""
+src/
+app/ # Next.js pages (routes) and layouts
+api/ # Next.js API Routes (backend logic)
+components/ # Reusable UI components (Shadcn UI based)
+ui/ # Shadcn UI components (copied and pasted)
+[feature]/ # Feature-specific components
+lib/ # Utility functions, helper modules, Supabase client setup
+services/ # Data fetching logic with TanStack Query (calls API routes)
+types/ # TypeScript types and interfaces
+styles/ # Global styles, Tailwind CSS configuration
+utils/ # General utility functions
+"""
+- RULE 44: *Naming Conventions:*
+  - Components: PascalCase (e.g., `ProductCard.tsx`)
+  - Files/Folders: kebab-case (e.g., `product-card.tsx`, `product-details`)
+  - Variables/Functions: camelCase (e.g., `productName`, `fetchProducts`)
+  - Constants: UPPER_SNAKE_CASE (e.g., `MAX_PRODUCTS`)
+  - Hooks:  `use` prefix (e.g., `useProductData`)
+- RULE 45: *Imports:* Use absolute imports with the `@` alias (configured in `tsconfig.json`). *Example: `import { Button } from '@/components/ui/button';`*
+- RULE 46: *Comments:* Use JSDoc comments for functions and components to improve IDE intellisense and documentation.
+
+# Cursor-Specific Instructions
+
+- RULE 47: *Agent Mode:* Utilize Cursor's Agent mode for complex tasks that span multiple files.  Be explicit in your instructions.
+- RULE 48: *Context:* Use `@` to reference files, folders, and documentation within your prompts.  *Example: "Update the `@/components/ProductCard.tsx` component to display the `@/types/Product.ts` interface."*
+- RULE 49: *Documentation:*  Reference relevant documentation (Shadcn UI, TanStack, Supabase) within your prompts using `@docs`. *Example: "Add a date picker using `@docs shadcn datepicker`."*. Add links to your docs in cursor.
+- RULE 50: *Command Confirmation:*  When Cursor suggests running terminal commands, review them carefully before approving.
+- RULE 51: *Error Handling:*  If Cursor encounters errors, use the "Ask Cursor to fix" feature, and provide specific feedback.
+- RULE 52: *Refactoring:* Use `Ctrl+K` (or `Cmd+K`) for targeted refactoring and code generation within a specific file.
+- RULE 53: *Chat:* Use `Ctrl+Shift+L` or `@` to add specific code blocks to the chat context for focused discussions.
+- RULE 54:*Notepads*: Create and use Notepads to have quick access to information or instructions.
+
