@@ -1,8 +1,10 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
+import { Header } from "@/components/layout/header"; // Import the Header
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -31,7 +33,15 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
             >
                 <Providers>
-                    {children}
+                    <div className="relative flex min-h-screen flex-col">
+                        <Header /> {/* Add Header here */}
+                        <main className="flex-1 container py-6">
+                            {" "}
+                            {/* Add main content wrapper */}
+                            {children}
+                        </main>
+                        {/* Add Footer Here Later if needed */}
+                    </div>
                     <Toaster />
                 </Providers>
             </body>
