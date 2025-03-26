@@ -17,19 +17,30 @@ if (!supabaseAnonKey) {
     throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }
 
+let supabaseClient: ReturnType<
+    typeof createClientComponentClient<Database>
+> | null = null;
+
 export const createClient = () => {
+    if (supabaseClient) return supabaseClient;
+
     try {
-        const client = createClientComponentClient<Database>({
+        supabaseClient = createClientComponentClient<Database>({
             supabaseUrl,
             supabaseKey: supabaseAnonKey,
         });
 
         // Test the client connection
-        client.auth.onAuthStateChange((event, session) => {
-            console.log("Auth State Change:", { event, session: !!session });
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (process.env.NODE_ENV === "development") {
+                console.log("Auth State Change:", {
+                    event,
+                    session: !!session,
+                });
+            }
         });
 
-        return client;
+        return supabaseClient;
     } catch (error) {
         console.error("Error creating Supabase client:", error);
         throw error;

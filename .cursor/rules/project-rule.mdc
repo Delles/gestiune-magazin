@@ -48,7 +48,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 # Styling Rules
 
 - RULE 11: *Tailwind First:* Use Tailwind CSS utility classes exclusively for styling. No custom CSS files or `style` props.
-- RULE 12: *Shadcn UI Components:* Use Shadcn UI components as the primary building blocks for all UI elements. Copy and paste components from the Shadcn UI documentation - just use them into the files , we will add later 
+- RULE 12: *Shadcn UI Components:* Use Shadcn UI components as the primary building blocks for all UI elements. Copy and paste components from the Shadcn UI documentation - just use them into the files , we will add later . Shadcn already init . Check compones/ui before adding them.
 - RULE 13: *Customize via Classes:* Customize Shadcn UI components only by adding or modifying Tailwind CSS classes. Do not directly edit the component's internal JSX.
 - RULE 14: *Responsiveness:* Use Tailwind's responsive modifiers (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) for all responsive styling.
 - RULE 15: *Consistent Design System:* Maintain consistent spacing, typography, and colors using Tailwind's configuration and Shadcn UI's theming.

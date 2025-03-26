@@ -27,15 +27,30 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 
-// Define the form schema with Zod
+/**
+ * Zod schema for login form validation
+ * Validates email format and requires password
+ */
 const loginFormSchema = z.object({
     email: z.string().email("Please enter a valid email address"),
     password: z.string().min(1, "Password is required"),
 });
 
-// Infer the type from schema
+/**
+ * Type definition for login form values
+ */
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
+/**
+ * Login form component for user authentication
+ *
+ * Handles user login via Supabase authentication, form validation,
+ * and redirects after successful login.
+ *
+ * @param {object} props - Component props
+ * @param {string} [props.className] - Optional CSS class name
+ * @returns {JSX.Element} The login form component
+ */
 export function LoginForm({
     className,
     ...props
@@ -48,24 +63,29 @@ export function LoginForm({
     // Memoize the Supabase client to maintain a stable reference
     const supabase = useMemo(() => createClient(), []);
 
-    // Check if signup was successful and display message
+    // Check URL parameters for status messages
     const signupSuccess = searchParams.get("signup") === "success";
+    const resetSuccess = searchParams.get("reset") === "success";
     // Get redirect URL if it exists
     const redirectTo = searchParams.get("redirect_to") || "/dashboard";
 
-    // Log when the component mounts
+    /**
+     * Log authentication status on component mount (development only)
+     */
     useEffect(() => {
-        console.log("LoginForm mounted");
-        // Test connection
-        supabase.auth.getSession().then(({ data, error }) => {
-            console.log("Initial auth check:", {
-                hasSession: !!data.session,
-                error: error?.message,
+        if (process.env.NODE_ENV === "development") {
+            console.log("LoginForm mounted");
+            // Test connection
+            supabase.auth.getSession().then(({ data, error }) => {
+                console.log("Initial auth check:", {
+                    hasSession: !!data.session,
+                    error: error?.message,
+                });
             });
-        });
+        }
     }, [supabase.auth]);
 
-    // Initialize react-hook-form
+    // Initialize react-hook-form with Zod validation
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(loginFormSchema),
         defaultValues: {
@@ -74,54 +94,64 @@ export function LoginForm({
         },
     });
 
-    // Handle form submission
+    /**
+     * Handles form submission for user login
+     *
+     * @param {LoginFormValues} values - The validated form values
+     */
     const onSubmit = async (values: LoginFormValues) => {
-        console.log("Login submission started");
+        if (process.env.NODE_ENV === "development") {
+            console.log("Login submission started");
+        }
         setIsSubmitting(true);
         setLoginError(null);
 
         const { email, password } = values;
 
         try {
-            console.log("Attempting login with email:", email);
+            if (process.env.NODE_ENV === "development") {
+                console.log("Attempting login with email:", email);
+            }
 
+            // Attempt to sign in with Supabase
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
-            console.log("Login response:", {
-                success: !error,
-                error: error?.message,
-                hasUser: !!data?.user,
-                userId: data?.user?.id,
-            });
+            if (process.env.NODE_ENV === "development") {
+                console.log("Login response:", {
+                    success: !error,
+                    error: error?.message,
+                    hasUser: !!data?.user,
+                    userId: data?.user?.id,
+                });
+            }
 
             if (error) {
-                console.error("Login error:", {
-                    message: error.message,
-                    status: error.status,
-                    name: error.name,
-                });
+                if (process.env.NODE_ENV === "development") {
+                    console.error("Login error:", {
+                        message: error.message,
+                        status: error.status,
+                        name: error.name,
+                    });
+                }
                 setLoginError(error.message);
             } else {
-                console.log("Login successful:", {
-                    userId: data.user?.id,
-                    email: data.user?.email,
-                });
+                if (process.env.NODE_ENV === "development") {
+                    console.log("Login successful:", {
+                        userId: data.user?.id,
+                        email: data.user?.email,
+                    });
+                }
+                // Redirect to dashboard or specified redirect URL
                 router.push(redirectTo);
             }
         } catch (error) {
-            console.error("Unexpected error during login:", {
-                error,
-                message:
-                    error instanceof Error ? error.message : "Unknown error",
-                stack: error instanceof Error ? error.stack : undefined,
-            });
+            console.error("Unexpected error during login:", error);
             setLoginError("An unexpected error occurred during login.");
         } finally {
             setIsSubmitting(false);
-            console.log("Login submission completed");
         }
     };
 
@@ -148,6 +178,12 @@ export function LoginForm({
                             {signupSuccess && (
                                 <p className="text-sm text-green-500">
                                     Signup successful! Please login.
+                                </p>
+                            )}
+                            {resetSuccess && (
+                                <p className="text-sm text-green-500">
+                                    Password reset successful! Please login with
+                                    your new password.
                                 </p>
                             )}
 

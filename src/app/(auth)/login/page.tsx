@@ -3,6 +3,12 @@ import { Suspense } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * Skeleton loader component for the login form
+ * Displays while the login form is loading
+ *
+ * @returns {JSX.Element} The login form skeleton component
+ */
 function LoginFormSkeleton() {
     return (
         <Card>
@@ -25,6 +31,12 @@ function LoginFormSkeleton() {
     );
 }
 
+/**
+ * Login page component
+ * Renders the login form with a loading skeleton
+ *
+ * @returns {JSX.Element} The login page component
+ */
 export default function Page() {
     return (
         <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">

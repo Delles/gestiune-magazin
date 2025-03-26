@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
@@ -40,7 +40,13 @@ const passwordRequirements: PasswordRequirement[] = [
     { text: "One number", regex: /\d/ },
 ];
 
-// Define the form schema with Zod
+/**
+ * Zod schema for signup form validation
+ * Requires:
+ * - Valid email format
+ * - Password with minimum length and complexity requirements
+ * - Matching password confirmation
+ */
 const signupFormSchema = z
     .object({
         email: z.string().email("Please enter a valid email address"),
@@ -58,9 +64,21 @@ const signupFormSchema = z
         path: ["confirmPassword"],
     });
 
-// Infer the type from schema
+/**
+ * Type definition for signup form values
+ */
 type SignupFormValues = z.infer<typeof signupFormSchema>;
 
+/**
+ * Signup form component for user registration
+ *
+ * Handles new user registration via Supabase authentication,
+ * form validation, and redirects after successful signup.
+ *
+ * @param {object} props - Component props
+ * @param {string} [props.className] - Optional CSS class name
+ * @returns {JSX.Element} The signup form component
+ */
 export function SignupForm({
     className,
     ...props
@@ -71,20 +89,26 @@ export function SignupForm({
         useState(false);
     const router = useRouter();
 
-    // Log when the component mounts
-    useEffect(() => {
-        console.log("SignupForm mounted");
-        const supabase = createClient();
-        // Test connection
-        supabase.auth.getSession().then(({ data, error }) => {
-            console.log("Initial auth check:", {
-                hasSession: !!data.session,
-                error: error?.message,
-            });
-        });
-    }, []);
+    // Memoize the Supabase client
+    const supabase = useMemo(() => createClient(), []);
 
-    // Initialize react-hook-form
+    /**
+     * Log authentication status on component mount (development only)
+     */
+    useEffect(() => {
+        if (process.env.NODE_ENV === "development") {
+            console.log("SignupForm mounted");
+            // Test connection
+            supabase.auth.getSession().then(({ data, error }) => {
+                console.log("Initial auth check:", {
+                    hasSession: !!data.session,
+                    error: error?.message,
+                });
+            });
+        }
+    }, [supabase.auth]);
+
+    // Initialize react-hook-form with Zod validation
     const form = useForm<SignupFormValues>({
         resolver: zodResolver(signupFormSchema),
         defaultValues: {
@@ -94,7 +118,11 @@ export function SignupForm({
         },
     });
 
-    // Handle form submission
+    /**
+     * Handles form submission for user registration
+     *
+     * @param {SignupFormValues} values - The validated form values
+     */
     const onSubmit = async (values: SignupFormValues) => {
         console.log("Form submission started");
         setIsSubmitting(true);
@@ -104,18 +132,11 @@ export function SignupForm({
 
         try {
             console.log("Attempting signup with email:", email);
-            const supabase = createClient();
 
+            // Register new user with Supabase
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
-            });
-
-            console.log("Signup response:", {
-                success: !error,
-                error: error?.message,
-                hasUser: !!data?.user,
-                userId: data?.user?.id,
             });
 
             if (error) {
@@ -130,19 +151,14 @@ export function SignupForm({
                     userId: data.user?.id,
                     email: data.user?.email,
                 });
+                // Redirect to login page with success parameter
                 router.push("/login?signup=success");
             }
         } catch (error) {
-            console.error("Unexpected error during signup:", {
-                error,
-                message:
-                    error instanceof Error ? error.message : "Unknown error",
-                stack: error instanceof Error ? error.stack : undefined,
-            });
+            console.error("Unexpected error during signup:", error);
             setSignupError("An unexpected error occurred during signup.");
         } finally {
             setIsSubmitting(false);
-            console.log("Form submission completed");
         }
     };
 
