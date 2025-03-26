@@ -6,7 +6,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
 import { toast } from "sonner";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import {
+    MoreHorizontal,
+    PlusCircle,
+    Trash2,
+    AlertTriangle,
+} from "lucide-react"; // Add icons
 
 import {
     Table,
@@ -15,7 +20,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table"; // RULE 12, 35
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,19 +30,24 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "@/components/ui/dialog"; // RULE 12
+    DialogFooter, // Import DialogFooter
+    DialogClose, // Import DialogClose
+} from "@/components/ui/dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator, // Add Separator
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // RULE 12
-import { CategoryForm } from "./category-form"; // Import the form
+} from "@/components/ui/dropdown-menu";
+import { CategoryForm } from "./category-form";
 import type { CategoryFormValues } from "@/lib/validation/settings-schemas";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 
+// --- Data Fetching & Mutations (Keep as before) ---
+// ... fetchCategories, createCategory, updateCategory, deleteCategory ...
 // --- Data Fetching ---
 async function fetchCategories(supabase: ReturnType<typeof createClient>) {
     const { data, error } = await supabase
@@ -65,8 +75,9 @@ async function createCategory(
         console.error("Create category error:", error);
         // Check for unique constraint violation
         if (error.code === "23505") {
-            // PostgreSQL unique violation code
-            throw new Error(`Category "${values.name}" already exists.`);
+            throw new Error(
+                `A category named "${values.name}" already exists. Please use a unique name.`
+            );
         }
         throw new Error("Failed to create category.");
     }
@@ -88,7 +99,7 @@ async function updateCategory(
         console.error("Update category error:", error);
         if (error.code === "23505") {
             throw new Error(
-                `Category name "${values.name}" is already in use.`
+                `The name "${values.name}" is already used by another category. Please choose a unique name.`
             );
         }
         throw new Error("Failed to update category.");
@@ -112,6 +123,7 @@ async function deleteCategory(
     }
 }
 
+// --- Component ---
 export function CategoriesList() {
     const queryClient = useQueryClient();
     const supabase = createClient();
@@ -119,7 +131,12 @@ export function CategoriesList() {
     const [editingCategory, setEditingCategory] = useState<Category | null>(
         null
     );
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // State for delete dialog
+    const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+        null
+    ); // State for category to delete
 
+    // ... (useQuery remains the same) ...
     const {
         data: categories,
         isLoading,
@@ -129,7 +146,8 @@ export function CategoriesList() {
         queryFn: () => fetchCategories(supabase),
     });
 
-    const mutation = useMutation({
+    const createUpdateMutation = useMutation({
+        // Renamed for clarity
         mutationFn: async (values: CategoryFormValues) => {
             if (values.id) {
                 await updateCategory(supabase, values);
@@ -144,7 +162,7 @@ export function CategoriesList() {
                 } successfully!`
             );
             queryClient.invalidateQueries({ queryKey: ["categories"] });
-            setIsFormOpen(false); // Close dialog on success
+            setIsFormOpen(false);
             setEditingCategory(null);
         },
         onError: (error) => {
@@ -157,34 +175,46 @@ export function CategoriesList() {
         onSuccess: () => {
             toast.success("Category deleted successfully!");
             queryClient.invalidateQueries({ queryKey: ["categories"] });
+            setIsDeleteDialogOpen(false); // Close delete dialog on success
+            setCategoryToDelete(null);
         },
         onError: (error) => {
             toast.error(error.message || "Failed to delete category.");
+            // Optionally keep dialog open on error: setIsDeleteDialogOpen(true);
         },
     });
 
-    const handleEdit = (category: Category) => {
+    const handleOpenEditDialog = (category: Category) => {
         setEditingCategory(category);
         setIsFormOpen(true);
     };
 
-    const handleDelete = (category: Category) => {
-        if (
-            window.confirm(
-                `Are you sure you want to delete the category "${category.name}"?`
-            )
-        ) {
-            deleteMutation.mutate(category.id);
+    const handleOpenDeleteDialog = (category: Category) => {
+        setCategoryToDelete(category);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleConfirmDelete = () => {
+        if (categoryToDelete) {
+            deleteMutation.mutate(categoryToDelete.id);
         }
     };
 
-    const handleOpenChange = (open: boolean) => {
+    const handleFormDialogChange = (open: boolean) => {
         if (!open) {
             setEditingCategory(null); // Reset editing state when dialog closes
         }
         setIsFormOpen(open);
     };
 
+    const handleDeleteDialogChange = (open: boolean) => {
+        if (!open) {
+            setCategoryToDelete(null); // Reset delete target when dialog closes
+        }
+        setIsDeleteDialogOpen(open);
+    };
+
+    // ... (isLoading and error rendering remain the same) ...
     if (isLoading) {
         return (
             <div className="space-y-2">
@@ -206,7 +236,8 @@ export function CategoriesList() {
 
     return (
         <div className="space-y-4">
-            <Dialog open={isFormOpen} onOpenChange={handleOpenChange}>
+            {/* Add/Edit Category Dialog */}
+            <Dialog open={isFormOpen} onOpenChange={handleFormDialogChange}>
                 <DialogTrigger asChild>
                     <Button size="sm" onClick={() => setIsFormOpen(true)}>
                         <PlusCircle className="mr-2 h-4 w-4" />
@@ -228,13 +259,13 @@ export function CategoriesList() {
                     </DialogHeader>
                     <CategoryForm
                         initialData={editingCategory}
-                        onSubmit={mutation.mutateAsync} // Pass the async mutation function
-                        isPending={mutation.isPending}
+                        onSubmit={createUpdateMutation.mutateAsync}
+                        isPending={createUpdateMutation.isPending}
                     />
-                    {/* DialogFooter and DialogClose can be removed if submission closes it */}
                 </DialogContent>
             </Dialog>
 
+            {/* Categories Table */}
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
@@ -276,17 +307,23 @@ export function CategoriesList() {
                                                 </DropdownMenuLabel>
                                                 <DropdownMenuItem
                                                     onSelect={() =>
-                                                        handleEdit(category)
+                                                        handleOpenEditDialog(
+                                                            category
+                                                        )
                                                     }
                                                 >
                                                     Edit
                                                 </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
                                                 <DropdownMenuItem
                                                     onSelect={() =>
-                                                        handleDelete(category)
+                                                        handleOpenDeleteDialog(
+                                                            category
+                                                        )
                                                     }
                                                     className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                                 >
+                                                    <Trash2 className="mr-2 h-4 w-4" />{" "}
                                                     Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -307,6 +344,47 @@ export function CategoriesList() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={isDeleteDialogOpen}
+                onOpenChange={handleDeleteDialogChange}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center">
+                            <AlertTriangle className="mr-2 h-5 w-5 text-destructive" />{" "}
+                            Are you absolutely sure?
+                        </DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently
+                            delete the category{" "}
+                            <span className="font-semibold">
+                                {categoryToDelete?.name}
+                            </span>
+                            .{/* Add warning about linked items later */}
+                            {/* <br/> Any inventory items linked to this category will need to be updated. */}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:justify-end">
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={handleConfirmDelete}
+                            disabled={deleteMutation.isPending}
+                        >
+                            {deleteMutation.isPending
+                                ? "Deleting..."
+                                : "Delete Category"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

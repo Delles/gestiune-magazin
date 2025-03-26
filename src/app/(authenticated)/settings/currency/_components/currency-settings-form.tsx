@@ -1,9 +1,9 @@
 // src/app/(authenticated)/settings/currency/_components/currency-settings-form.tsx
-"use client"; // RULE 21: Client-side form interaction, hooks
+"use client";
 
+import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import React from "react"; // Add React import for useEffect
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -23,7 +23,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select"; // RULE 12
+} from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import {
     currencySchema,
@@ -34,50 +34,59 @@ import { SUPPORTED_CURRENCIES } from "@/lib/constants/currencies";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type CurrencySettings = Database["public"]["Tables"]["CurrencySettings"]["Row"];
-// Define a type for the default/fallback object
-type DefaultCurrencySettings = Omit<
-    CurrencySettings,
-    "created_at" | "updated_at"
-> & { created_at: string | null; updated_at: string | null };
 
 // --- Data Fetching ---
+// Fetch function returns CurrencySettings or null
 async function fetchCurrencySettings(
     supabase: ReturnType<typeof createClient>
-): Promise<CurrencySettings | DefaultCurrencySettings> {
+): Promise<CurrencySettings | null> {
     const { data, error } = await supabase
         .from("CurrencySettings")
         .select("*")
+        .limit(1)
         .maybeSingle();
 
     if (error) {
         console.error("Error fetching currency settings:", error);
         throw new Error("Could not load currency settings.");
     }
-    // Default includes necessary fields
-    return (
-        data || {
-            id: 1, // Assuming default ID is 1
-            currency_code: "USD",
-            created_at: null,
-            updated_at: null,
-        }
-    );
+    return data; // Returns data or null
 }
 
-// --- Data Mutation ---
-// Use UPDATE assuming row 1 exists
-async function updateCurrencySettings(
+// --- Data Mutations (Separate Insert/Update) ---
+async function insertCurrencySettings(
     supabase: ReturnType<typeof createClient>,
-    values: CurrencyFormValues & { id: number | bigint } // Pass ID separately
+    values: CurrencyFormValues
 ) {
-    const settingsDataForUpdate = {
+    const settingsDataToInsert = {
         currency_code: values.currencyCode,
+        // No ID provided!
     };
-
     const { error } = await supabase
         .from("CurrencySettings")
-        .update(settingsDataForUpdate)
-        .eq("id", Number(values.id)) // Target row 1
+        .insert(settingsDataToInsert)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error inserting currency settings:", error);
+        throw new Error("Failed to create currency settings.");
+    }
+}
+
+async function updateCurrencySettings(
+    supabase: ReturnType<typeof createClient>,
+    values: CurrencyFormValues,
+    id: number | bigint // Existing ID required
+) {
+    const settingsDataToUpdate = {
+        currency_code: values.currencyCode,
+        // No ID provided!
+    };
+    const { error } = await supabase
+        .from("CurrencySettings")
+        .update(settingsDataToUpdate)
+        .eq("id", Number(id)) // Use existing ID
         .select()
         .single();
 
@@ -91,17 +100,16 @@ export function CurrencySettingsForm() {
     const queryClient = useQueryClient();
     const supabase = createClient();
 
-    // Adjust type assertion for useQuery
+    // Query now expects CurrencySettings or null
     const {
-        data: currencySettings,
+        data: currencySettings, // This can be CurrencySettings | null
         isLoading,
         error,
-    } = useQuery<CurrencySettings | DefaultCurrencySettings>({
+    } = useQuery<CurrencySettings | null>({
         queryKey: ["currencySettings"],
         queryFn: () => fetchCurrencySettings(supabase),
     });
 
-    // React Hook Form setup
     const form = useForm<CurrencyFormValues>({
         resolver: zodResolver(currencySchema),
         defaultValues: {
@@ -109,25 +117,38 @@ export function CurrencySettingsForm() {
         },
     });
 
-    // Use useEffect to update form values when the query data is available
+    // Use useEffect to update form values
     React.useEffect(() => {
         if (currencySettings) {
             form.reset({
                 currencyCode: currencySettings.currency_code || "USD",
             });
+        } else {
+            // Reset to default if no data (for insert case)
+            form.reset({ currencyCode: "USD" });
         }
     }, [currencySettings, form]);
 
     const mutation = useMutation({
-        mutationFn: (values: CurrencyFormValues) =>
-            updateCurrencySettings(supabase, {
-                ...values,
-                id: currencySettings?.id ?? 1,
-            }), // Default to 1 if needed
+        mutationFn: async (values: CurrencyFormValues) => {
+            // Decide whether to insert or update
+            if (currencySettings?.id) {
+                await updateCurrencySettings(
+                    supabase,
+                    values,
+                    currencySettings.id
+                );
+            } else {
+                await insertCurrencySettings(supabase, values);
+            }
+        },
         onSuccess: () => {
-            toast.success("Currency settings updated successfully!");
+            toast.success(
+                `Currency settings ${
+                    currencySettings?.id ? "updated" : "saved"
+                } successfully!`
+            );
             queryClient.invalidateQueries({ queryKey: ["currencySettings"] });
-            // Optionally: force reload or refresh relevant parts of UI
         },
         onError: (error) => {
             toast.error(error.message || "Failed to update settings.");
@@ -135,15 +156,10 @@ export function CurrencySettingsForm() {
     });
 
     const onSubmit = (values: CurrencyFormValues) => {
-        if (!currencySettings?.id) {
-            toast.error(
-                "Cannot save settings: Currency Settings ID is missing."
-            );
-            return;
-        }
         mutation.mutate(values);
     };
 
+    // --- Loading and Error States ---
     if (isLoading) {
         return (
             <div className="space-y-4 max-w-md">
@@ -153,7 +169,6 @@ export function CurrencySettingsForm() {
             </div>
         );
     }
-
     if (error) {
         return (
             <p className="text-destructive">
@@ -162,6 +177,7 @@ export function CurrencySettingsForm() {
         );
     }
 
+    // --- Form JSX ---
     return (
         <Form {...form}>
             <form
@@ -178,6 +194,7 @@ export function CurrencySettingsForm() {
                                 key={field.value}
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
+                                value={field.value} // Ensure controlled component
                             >
                                 <FormControl>
                                     <SelectTrigger>
@@ -206,7 +223,7 @@ export function CurrencySettingsForm() {
                 />
                 <Button
                     type="submit"
-                    disabled={mutation.isPending || !currencySettings?.id}
+                    disabled={mutation.isPending} // Only disable during mutation
                 >
                     {mutation.isPending ? "Saving..." : "Save Currency"}
                 </Button>

@@ -1,9 +1,9 @@
 // src/app/(authenticated)/settings/store-information/_components/store-info-form.tsx
-"use client"; // RULE 21: Client-side form interaction, hooks
+"use client";
 
-import { zodResolver } from "@hookform/resolvers/zod"; // Using existing react-hook-form setup
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // RULE 23, 26
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as React from "react";
 
@@ -16,69 +16,79 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
-} from "@/components/ui/form"; // RULE 12, 32
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import {
     storeInfoSchema,
     type StoreInfoFormValues,
-} from "@/lib/validation/settings-schemas"; // RULE 31
+} from "@/lib/validation/settings-schemas";
 import type { Database } from "@/types/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Use the specific Row type from the generated types
 type StoreSettings = Database["public"]["Tables"]["StoreSettings"]["Row"];
-// Define a type for the default/fallback object
-type DefaultStoreSettings = Omit<StoreSettings, "created_at" | "updated_at"> & {
-    created_at: string | null;
-    updated_at: string | null;
-};
+
 // --- Data Fetching ---
-// Make the return type explicit and ensure the fallback matches
+// Fetch function now returns StoreSettings OR null if no row exists
 async function fetchStoreSettings(
     supabase: ReturnType<typeof createClient>
-): Promise<StoreSettings | DefaultStoreSettings> {
+): Promise<StoreSettings | null> {
+    // Return null if not found
     const { data, error } = await supabase
         .from("StoreSettings")
         .select("*")
-        .maybeSingle(); // Expect 0 or 1 row
+        .limit(1)
+        .maybeSingle(); // Returns data or null
 
     if (error) {
         console.error("Error fetching store settings:", error);
         throw new Error("Could not load store settings.");
     }
-    // Return default values matching the required fields of StoreSettings
-    return (
-        data || {
-            id: 1, // Assuming default ID is 1 for the single row
-            store_name: "",
-            store_address: null,
-            store_phone: null,
-            store_email: null,
-            logo_url: null,
-            created_at: null, // Provide default/null for timestamp fields
-            updated_at: null, // Provide default/null for timestamp fields
-        }
-    );
+    return data; // Directly return data or null
 }
 
-// --- Data Mutation ---
-async function updateStoreSettings(
+// --- Data Mutations (Separate Insert/Update) ---
+async function insertStoreSettings(
     supabase: ReturnType<typeof createClient>,
-    values: StoreInfoFormValues & { id: number | bigint }
+    values: StoreInfoFormValues
 ) {
-    const settingsDataForUpsert = {
+    const settingsDataToInsert = {
         store_name: values.storeName,
         store_address: values.storeAddress || null,
         store_phone: values.storePhone || null,
         store_email: values.storeEmail || null,
+        // No ID provided here!
+    };
+    const { error } = await supabase
+        .from("StoreSettings")
+        .insert(settingsDataToInsert)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error inserting store settings:", error);
+        throw new Error("Failed to create store settings.");
+    }
+}
+
+async function updateStoreSettings(
+    supabase: ReturnType<typeof createClient>,
+    values: StoreInfoFormValues,
+    id: number | bigint // Existing ID is required
+) {
+    const settingsDataToUpdate = {
+        store_name: values.storeName,
+        store_address: values.storeAddress || null,
+        store_phone: values.storePhone || null,
+        store_email: values.storeEmail || null,
+        // No ID provided here!
     };
 
     const { error } = await supabase
         .from("StoreSettings")
-        .update(settingsDataForUpsert)
-        .eq("id", Number(values.id))
+        .update(settingsDataToUpdate)
+        .eq("id", Number(id)) // Use the existing ID to target the row
         .select()
         .single();
 
@@ -92,19 +102,18 @@ export function StoreInfoForm() {
     const queryClient = useQueryClient();
     const supabase = createClient();
 
-    // Fetch data using TanStack Query
+    // Query now expects StoreSettings or null
     const {
-        data: storeSettings,
+        data: storeSettings, // This can be StoreSettings | null
         isLoading: isLoadingSettings,
         error: settingsError,
-    } = useQuery<StoreSettings | DefaultStoreSettings>({
+    } = useQuery<StoreSettings | null>({
         queryKey: ["storeSettings"],
         queryFn: () => fetchStoreSettings(supabase),
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
     });
 
-    // Initialize form with empty defaults
     const form = useForm<StoreInfoFormValues>({
         resolver: zodResolver(storeInfoSchema),
         defaultValues: {
@@ -115,8 +124,10 @@ export function StoreInfoForm() {
         },
     });
 
-    // Update form values when data loads
+    // Update form when data loads or changes
     React.useEffect(() => {
+        // Only reset if storeSettings is not null (i.e., data exists)
+        // If null, the defaults are fine (empty form for insertion)
         if (storeSettings) {
             form.reset({
                 storeName: storeSettings.store_name || "",
@@ -124,47 +135,62 @@ export function StoreInfoForm() {
                 storePhone: storeSettings.store_phone || "",
                 storeEmail: storeSettings.store_email || "",
             });
+        } else {
+            // Explicitly reset to defaults if data is null (ensures clean state)
+            form.reset({
+                storeName: "",
+                storeAddress: "",
+                storePhone: "",
+                storeEmail: "",
+            });
         }
     }, [storeSettings, form]);
 
     const mutation = useMutation({
-        mutationFn: (values: StoreInfoFormValues) =>
-            updateStoreSettings(supabase, {
-                ...values,
-                id: storeSettings?.id ?? 1,
-            }),
+        mutationFn: async (values: StoreInfoFormValues) => {
+            // Decide whether to insert or update based on fetched data
+            if (storeSettings?.id) {
+                // Existing row found, perform update
+                await updateStoreSettings(supabase, values, storeSettings.id);
+            } else {
+                // No existing row, perform insert
+                await insertStoreSettings(supabase, values);
+            }
+        },
         onSuccess: () => {
-            toast.success("Store information updated successfully!");
+            // values are the form values submitted
+            toast.success(
+                `Store information ${
+                    storeSettings?.id ? "updated" : "created"
+                } successfully!`
+            );
             queryClient.invalidateQueries({ queryKey: ["storeSettings"] });
         },
         onError: (error) => {
-            toast.error(error.message || "Failed to update settings.");
+            toast.error(error.message || "Failed to save settings.");
         },
     });
 
     const onSubmit = (values: StoreInfoFormValues) => {
-        if (!storeSettings?.id) {
-            toast.error("Cannot save settings: Store ID is missing.");
-            return;
-        }
         mutation.mutate(values);
     };
 
-    // Loading State
+    // --- Loading and Error States ---
     if (isLoadingSettings) {
         return (
-            <div className="space-y-4">
+            <div className="space-y-4 max-w-2xl">
                 <Skeleton className="h-8 w-1/4" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-8 w-1/4" />
                 <Skeleton className="h-20 w-full" />
-                {/* ... more skeletons for phone, email, button */}
-                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-8 w-1/4" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-8 w-1/4" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-24 mt-4" />
             </div>
         );
     }
-
-    // Error State
     if (settingsError) {
         return (
             <p className="text-destructive">
@@ -173,13 +199,14 @@ export function StoreInfoForm() {
         );
     }
 
+    // --- Form JSX ---
     return (
-        // RULE 12, 32 - Using Shadcn Form components
         <Form {...form}>
             <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-8 max-w-2xl"
             >
+                {/* Fields: storeName, storeAddress, storePhone, storeEmail */}
                 <FormField
                     control={form.control}
                     name="storeName"
@@ -252,19 +279,9 @@ export function StoreInfoForm() {
                         </FormItem>
                     )}
                 />
-                {/* Logo upload deferred for simplicity in Phase 1 */}
-                {/*
-                 <FormItem>
-                     <FormLabel>Store Logo</FormLabel>
-                     <FormControl>
-                         <Input type="file" disabled /> // Placeholder
-                     </FormControl>
-                     <FormDescription>Upload your store logo (feature coming soon).</FormDescription>
-                 </FormItem>
-                 */}
                 <Button
                     type="submit"
-                    disabled={mutation.isPending || !storeSettings?.id}
+                    disabled={mutation.isPending} // Disable only during mutation
                 >
                     {mutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
