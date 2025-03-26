@@ -26,6 +26,7 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
+import { toast } from "sonner";
 
 /**
  * Zod schema for login form validation
@@ -144,6 +145,7 @@ export function LoginForm({
                         email: data.user?.email,
                     });
                 }
+                toast.success("Successfully signed in!");
                 // Redirect to dashboard or specified redirect URL
                 router.push(redirectTo);
             }

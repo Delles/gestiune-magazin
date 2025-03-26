@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CategoryForm } from "./category-form";
 import type { CategoryFormValues } from "@/lib/validation/settings-schemas";
+import { useAuth } from "@/contexts/auth-context"; // <--- IMPORT useAuth
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 
@@ -127,6 +128,7 @@ async function deleteCategory(
 export function CategoriesList() {
     const queryClient = useQueryClient();
     const supabase = createClient();
+    const { session, isLoading: isAuthLoading } = useAuth(); // <--- GET AUTH STATE
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(
         null
@@ -136,14 +138,15 @@ export function CategoriesList() {
         null
     ); // State for category to delete
 
-    // ... (useQuery remains the same) ...
     const {
         data: categories,
-        isLoading,
+        isLoading: isLoadingCategories, // Renamed to avoid conflict
         error,
+        isFetching, // Use isFetching for subsequent loads
     } = useQuery<Category[]>({
         queryKey: ["categories"],
         queryFn: () => fetchCategories(supabase),
+        enabled: !!session && !isAuthLoading, // Only run query if logged in and auth check finished
     });
 
     const createUpdateMutation = useMutation({
@@ -214,8 +217,13 @@ export function CategoriesList() {
         setIsDeleteDialogOpen(open);
     };
 
-    // ... (isLoading and error rendering remain the same) ...
-    if (isLoading) {
+    // --- ADJUST LOADING STATE ---
+    // Show loading skeleton if either auth is loading or categories are loading/fetching
+    const showLoadingSkeleton = isAuthLoading || isLoadingCategories;
+    // --- END ADJUST LOADING STATE ---
+
+    if (showLoadingSkeleton) {
+        // Use combined loading state
         return (
             <div className="space-y-2">
                 <Skeleton className="h-10 w-32" />
@@ -226,11 +234,14 @@ export function CategoriesList() {
         );
     }
 
-    if (error) {
+    // Handle case where user is logged out (query is disabled) or fetch error
+    if ((!session && !isAuthLoading) || error) {
         return (
-            <p className="text-destructive">
-                Error loading categories: {error.message}
-            </p>
+            <div className="text-center text-muted-foreground py-10">
+                {error
+                    ? `Error loading categories: ${error.message}`
+                    : "Please log in to view categories."}
+            </div>
         );
     }
 
@@ -239,7 +250,11 @@ export function CategoriesList() {
             {/* Add/Edit Category Dialog */}
             <Dialog open={isFormOpen} onOpenChange={handleFormDialogChange}>
                 <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => setIsFormOpen(true)}>
+                    <Button
+                        size="sm"
+                        onClick={() => setIsFormOpen(true)}
+                        disabled={!session}
+                    >
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Add Category
                     </Button>
@@ -337,7 +352,9 @@ export function CategoriesList() {
                                     colSpan={3}
                                     className="h-24 text-center"
                                 >
-                                    No categories found.
+                                    {isFetching
+                                        ? "Loading..."
+                                        : "No categories found."}
                                 </TableCell>
                             </TableRow>
                         )}

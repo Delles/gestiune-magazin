@@ -60,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 switch (event) {
                     case "SIGNED_IN":
                         router.refresh();
-                        toast.success("Successfully signed in!");
                         break;
                     case "SIGNED_OUT":
                         router.refresh();
