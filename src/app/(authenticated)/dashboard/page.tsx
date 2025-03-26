@@ -6,7 +6,8 @@ import { unstable_noStore as noStore } from "next/cache"; // Keep noStore
 export default async function Dashboard() {
     noStore(); // Keep dynamic rendering
 
-    const supabase = createServerClient(); // Use the server helper directly
+    // Get the supabase client (await since it's now async)
+    const supabase = await createServerClient();
 
     // Use getUser() for server-side verification
     const {

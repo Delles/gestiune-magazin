@@ -139,13 +139,8 @@ export function LoginForm({
                 }
                 setLoginError(error.message);
             } else {
-                if (process.env.NODE_ENV === "development") {
-                    console.log("Login successful:", {
-                        userId: data.user?.id,
-                        email: data.user?.email,
-                    });
-                }
                 toast.success("Successfully signed in!");
+
                 // Redirect to dashboard or specified redirect URL
                 router.push(redirectTo);
             }

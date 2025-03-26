@@ -59,7 +59,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Handle auth events
                 switch (event) {
                     case "SIGNED_IN":
-                        router.refresh();
+                        if (process.env.NODE_ENV === "development") {
+                            console.log(
+                                "Auth context: SIGNED_IN event - NOT triggering refresh/redirect"
+                            );
+                        }
+                        // Don't call router.refresh() as it might interfere with
+                        // the intended redirect from the login form
                         break;
                     case "SIGNED_OUT":
                         router.refresh();

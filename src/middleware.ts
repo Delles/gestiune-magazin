@@ -1,28 +1,47 @@
 // src/middleware.ts
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { Database } from "@/types/supabase";
 
 export async function middleware(req: NextRequest) {
-    // console.log(`---> Middleware running for: ${req.nextUrl.pathname}`); // Optional: Keep this top-level log if helpful
+    // Create a response object
     const res = NextResponse.next();
-    const supabase = createMiddlewareClient<Database>({ req, res });
+
+    // Create Supabase client with ssr package using the new non-deprecated methods
+    const supabase = createServerClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return req.cookies.getAll();
+                },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        req.cookies.set({
+                            name,
+                            value,
+                            ...options,
+                        });
+                        res.cookies.set({
+                            name,
+                            value,
+                            ...options,
+                        });
+                    });
+                },
+            },
+        }
+    );
+
     const { pathname } = req.nextUrl;
 
     try {
+        // Get session before anything else
         const {
             data: { session },
-            error: sessionError,
         } = await supabase.auth.getSession(); // Refresh session
-
-        // Optional: Log session errors if they occur
-        if (sessionError) {
-            console.error(
-                `[Middleware] Session Error for path ${pathname}:`,
-                sessionError.message
-            );
-        }
 
         // Define path groups
         const protectedPaths = ["/dashboard", "/settings"];
@@ -37,7 +56,6 @@ export async function middleware(req: NextRequest) {
         if (isProtectedRoute && !session) {
             const redirectUrl = new URL("/login", req.url);
             redirectUrl.searchParams.set("redirect_to", pathname);
-            // console.log(`[Middleware] Redirecting unauthenticated from ${pathname} to /login`); // Optional log
             return NextResponse.redirect(redirectUrl);
         }
 
@@ -46,11 +64,9 @@ export async function middleware(req: NextRequest) {
             const redirectTo =
                 req.nextUrl.searchParams.get("redirect_to") || "/dashboard";
             const redirectUrl = new URL(redirectTo, req.url);
-            // console.log(`[Middleware] Redirecting authenticated from ${pathname} to ${redirectTo}`); // Optional log
             return NextResponse.redirect(redirectUrl);
         }
 
-        // console.log(`[Middleware] Allowing access to ${pathname}`); // Optional log
         return res; // Allow request and set cookie
     } catch (error) {
         console.error(
