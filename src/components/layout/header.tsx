@@ -43,7 +43,12 @@ export function Header() {
                                 >
                                     Dashboard
                                 </Link>
-                                {/* Add Inventory Link later */}
+                                <Link
+                                    href="/inventory"
+                                    className="transition-colors hover:text-foreground/80 text-foreground/60"
+                                >
+                                    Inventory
+                                </Link>
                                 {/* Add Sales Link later */}
                                 {/* Add Suppliers Link later */}
                                 <Link
