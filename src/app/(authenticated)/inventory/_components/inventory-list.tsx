@@ -40,10 +40,16 @@ import {
     Eye,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogTrigger,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import InventoryItemForm from "./inventory-item-form";
-import StockAdjustmentForm from "./stock-adjustment-form";
+import StockAdjustmentForm from "./stock-adjustment";
 import { useRouter } from "next/navigation";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
 
 // Define a type for our simplified inventory items
 type InventoryItem = {
@@ -495,7 +501,13 @@ export default function InventoryList() {
                         if (!open) setAdjustingStockItem(null);
                     }}
                 >
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
+                        <DialogTitle>
+                            <VisuallyHidden>
+                                Stock Adjustment for{" "}
+                                {adjustingStockItem.item_name}
+                            </VisuallyHidden>
+                        </DialogTitle>
                         <StockAdjustmentForm
                             itemId={adjustingStockItem.id}
                             itemName={adjustingStockItem.item_name}

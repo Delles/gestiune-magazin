@@ -18,9 +18,15 @@ import {
     PencilIcon,
 } from "lucide-react";
 import { Metadata } from "next";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import StockAdjustmentForm from "../_components/stock-adjustment-form";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import StockAdjustmentForm from "../_components/stock-adjustment";
 import EditFormContainer from "./edit-form-container";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
 
 export const metadata: Metadata = {
     title: "Inventory Item Details",
@@ -136,6 +142,12 @@ export default async function InventoryItemPage({
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent className="sm:max-w-[400px]">
+                                            <DialogTitle>
+                                                <VisuallyHidden>
+                                                    Stock Adjustment for{" "}
+                                                    {item.item_name}
+                                                </VisuallyHidden>
+                                            </DialogTitle>
                                             <StockAdjustmentForm
                                                 itemId={item.id}
                                                 itemName={item.item_name}
