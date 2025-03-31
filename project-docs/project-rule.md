@@ -1,176 +1,197 @@
-# Project: Inventory Management System
+--- START OF RULES FILE ---
 
-This document outlines the tech stack, key principles, and rules for the Inventory Management System project.
+# Project: Inventory Management System - Refined Rules & Best Practices
 
-## Overview
+This document outlines the tech stack, key principles, architectural decisions, and rules for the Inventory Management System project. It builds upon the initial rules, incorporating refinements based on the specific requirements and modern best practices.
 
-This project is an Inventory Management System built using Next.js 15, React 19, and Supabase. It provides a user interface for managing inventory, sales, suppliers, and financial data.
+## 1. Overview
 
-## Tech Stack
+This project is an Inventory Management System built using Next.js 15, React 19, and Supabase. It provides a user interface for managing inventory, sales, suppliers, financial data, and user settings. The goal is to build a robust, performant, type-safe, and maintainable application.
 
--   Next.js 15: Framework (App Router)
--   React 19: UI Library
--   Shadcn UI: UI Component Library (Tailwind CSS based). **Note:** Use `npx shadcn add` (package name is `shadcn`, not `shadcn-ui`).
--   Tailwind CSS: Styling (utility-first)
--   TanStack Query: Data Fetching and Server State Management
--   TanStack Forms: Form Management
--   TanStack Table: Headless Table Implementation
--   Zod: Schema Validation (integrated with TanStack Forms)
--   Supabase: Backend (PostgreSQL, authentication, storage). You have read-only access using `query(tool)`. Provide SQL code for manual insertion into the SQL editor for any modifications.
--   date-fns: Date/Time Manipulation
--   lucide-react: Icons
--   TypeScript: Type Safety (Strict Mode)
+## 2. Tech Stack
 
-## Key Principles
+-   **Framework:** Next.js 15 (App Router)
+-   **UI Library:** React 19
+-   **UI Components:** Shadcn UI (Built on Radix UI & Tailwind CSS). **Note:** Installed via CLI (`npx shadcn-ui@latest add`). Components reside in `src/components/ui`.
+-   **Styling:** Tailwind CSS (Utility-first). Use `clsx` for conditional classes and `tailwind-merge` for conflict resolution.
+-   **Server State & Data Fetching:** TanStack Query v5 (`@tanstack/react-query`) - Primarily for client-side caching and synchronization with server state. Server Components will often fetch data directly.
+-   **Form Management:** React Hook Form v7 (`react-hook-form`)
+-   **Schema Validation:** Zod (Integrated with React Hook Form via `@hookform/resolvers`).
+-   **Tables:** TanStack Table v8 (Headless UI for tables).
+-   **State Management (Client):** Zustand (Recommended for simple global client state, e.g., UI state). React Context for very localized state sharing.
+-   **Backend:** Supabase (PostgreSQL, Auth, Storage, Realtime). Read-only access via `query(tool)`. SQL for modifications must be provided.
+-   **Date/Time:** `date-fns`
+-   **Icons:** `lucide-react`
+-   **Language:** TypeScript (Strict Mode)
+-   **Linting/Formatting:** ESLint + Prettier (Configured for consistency).
+-   **Testing:** Vitest (Unit/Integration), React Testing Library (Component Testing), Playwright (E2E Testing) - _Recommended setup_.
 
--   **Type Safety:** Strict TypeScript usage throughout. No `any` types allowed. Use `unknown` when necessary, but prefer specific types or interfaces.
--   **Component-Based UI:** Build UI using composable, reusable Shadcn UI components.
--   **Server-Side Rendering (SSR) / Static Site Generation (SSG):** Leverage Next.js's capabilities for optimal performance.
--   **Data Consistency:** TanStack Query for all data fetching and mutations. Invalidate queries after mutations.
--   **Form Validation:** Zod schemas for all forms, integrated with TanStack Forms.
--   **Database Security:** Supabase Row Level Security (RLS) is mandatory for all tables.
--   **Code Style:** Consistent formatting, naming conventions, and file structure.
+## 3. Core Principles & Architecture
 
-## Next.js 15 Specific Guidelines
+-   **Type Safety First:** Strict TypeScript is non-negotiable. Leverage Zod for runtime validation and derive TS types (`z.infer`). No `any`. Use `unknown` judiciously with type guards.
+-   **Server Components by Default:** Leverage Next.js App Router and RSCs for performance. Fetch data directly in RSCs where possible. Minimize `'use client'`.
+-   **Clear State Management:**
+    -   **Server State:** TanStack Query (client-side caching, mutations, invalidation).
+    -   **Global Client State:** Zustand (simple, shared UI state).
+    -   **Local Component State:** `useState`, `useReducer`.
+    -   **URL State:** Next.js Router (`useRouter`, `useSearchParams`, `usePathname`).
+-   **API Layer:** Use Next.js API Routes (`/app/api`) or Server Actions for backend logic and database mutations. RSCs can fetch read-only data directly _if RLS is secure_.
+-   **Component-Based UI:** Build with reusable Shadcn UI components. Favor composition.
+-   **Performance Focused:** Optimize bundle size, leverage Next.js caching, use `next/image`, lazy load components where appropriate.
+-   **Security Mindset:** Mandatory Supabase RLS, input validation (client & server with Zod), secure API routes/Server Actions, environment variables management.
+-   **Robust Form Handling:** React Hook Form + Zod for validation and submission logic.
+-   **Consistent Code Style:** Adhere to ESLint/Prettier rules. Follow naming conventions.
+-   **Testability:** Write testable code. Implement unit, integration, and E2E tests.
 
--   **Async Route Handlers:** In Next.js 15, route handlers require proper async/await patterns. Always await dynamic parameters from route contexts.
+## 4. Next.js 15 & React 19 Specific Guidelines
 
-    ```typescript
-    // CORRECT: Always await params in dynamic routes
-    export async function GET(request: NextRequest, { params }: RouteContext) {
-        const { itemId } = await params; // Correctly await params
-        // Rest of the handler
-    }
+-   **Async Server Components:** Fetch data directly using `async/await` in Server Components.
+-   **Route Handlers:** Always `await` dynamic `params` in route handlers: `async function GET(req, { params }) { const awaitedParams = await params; ... }`.
+-   **Caching:** Understand Next.js fetch caching. Use `revalidateTag`, `revalidatePath` for granular control. Use `unstable_noStore as noStore` from `next/cache` for explicitly dynamic data.
+-   **`'use client'` Boundaries:** Place `'use client'` directives at the component level where interactivity (hooks like `useState`, `useEffect`, event handlers) or browser APIs are needed. Keep client bundles small.
+-   **React 19 Features:** Leverage `useOptimistic` for better mutation UX. Explore other features like `use` as they stabilize within Next.js.
+-   **Server Actions:** Consider using Server Actions for form submissions and mutations directly from Server Components or Client Components, simplifying API route creation for mutations. Ensure proper security and error handling.
 
-    // INCORRECT: Will cause runtime errors
-    export async function GET(request: NextRequest, { params }: RouteContext) {
-        const itemId = params.itemId; // Error: params needs to be awaited
-        // Rest of the handler
-    }
-    ```
+## 5. Rules
 
--   **Caching and Data Revalidation:** Use `noStore()` from `next/cache` for data that should never be cached. Note that in Next.js 15, the API is `unstable_noStore` and should be aliased if used:
+### TypeScript Rules (TS)
 
-    ```typescript
-    import { unstable_noStore as noStore } from "next/cache";
+-   **TS-RULE 1: Strict Mode:** `"strict": true` in `tsconfig.json` is mandatory.
+-   **TS-RULE 2: No `any`:** Absolutely no `any`. Use `unknown` and type guards, or generics. Prefer specific types/interfaces.
+-   **TS-RULE 3: Type Inference:** Leverage inference for simple types (`const name = "Inventory";`). Be explicit for function signatures, complex objects, and API boundaries.
+-   **TS-RULE 4: Interfaces for Objects/Props:** Use `interface` for defining object shapes and component props. Use `Readonly<Props>` where applicable.
+-   **TS-RULE 5: Type Aliases for Complex Types:** Use `type` for unions, intersections, or utility types. `type ItemId = string | number;`
+-   **TS-RULE 6: Generics:** Use generics effectively for reusable, type-safe functions/components. Ensure type parameters are used.
+-   **TS-RULE 7: Primitive Types:** Use `number`, `string`, `boolean`, `symbol`, `object`. Avoid `Number`, `String`, etc.
+-   **TS-RULE 8: Callback Returns:** Use `void` for callbacks whose return value is ignored. `() => void`.
+-   **TS-RULE 9: `unknown` for Safety:** Use `unknown` over `any` when type is genuinely unknown, then narrow with type guards (`typeof`, `instanceof`, Zod `.parse`/`.safeParse`).
+-   **TS-RULE 10: DB/Schema/TS Consistency:** Maintain consistency. Generate Supabase types via CLI (`supabase gen types typescript --local > src/types/supabase.ts`). Use `z.infer<typeof mySchema>` to derive TS types from Zod schemas.
+-   **TS-RULE 11: Explicit API Types:** Define explicit types/interfaces for API route request bodies and responses.
 
-    export async function GET() {
-        noStore(); // Prevent caching entirely
-        // Rest of the handler
-    }
-    ```
+### Styling Rules (Style)
 
--   **Dialog Accessibility:** When using `DialogContent` from Shadcn UI components, always include a `DialogTitle` even if it's visually hidden:
-    ```tsx
-    <DialogContent>
-        <DialogTitle className="sr-only">Modal Title</DialogTitle>
-        {/* Modal content */}
-    </DialogContent>
-    ```
+-   **Style-RULE 1: Tailwind First:** Use Tailwind utility classes exclusively via the `className` prop. No custom CSS files unless absolutely necessary for global styles or complex overrides not achievable with Tailwind. No `style` prop.
+-   **Style-RULE 2: Shadcn UI Base:** Use Shadcn UI components as primary building blocks. Check `src/components/ui` before adding new ones.
+-   **Style-RULE 3: Customize via `className`:** Customize Shadcn components by passing Tailwind classes via the `className` prop. Use `clsx` for conditional classes and `tailwind-merge` (implicitly used by Shadcn) for utility conflict resolution. Do not edit component internals directly in `src/components/ui` unless necessary for project-wide modifications.
+-   **Style-RULE 4: Responsiveness:** Use Tailwind's responsive modifiers (`sm:`, `md:`, etc.) for all responsive design.
+-   **Style-RULE 5: Design System:** Adhere to the theme defined in `globals.css` and Tailwind config. Maintain consistency in spacing, typography, colors.
+-   **Style-RULE 6: Dark Mode:** Ensure all custom styles and components support Shadcn UI's dark mode. Test thoroughly.
 
-## Rules
+### React Component Rules (React)
 
-### TypeScript Rules
+-   **React-RULE 1: Functional Components & Hooks:** Use only functional components with React Hooks.
+-   **React-RULE 2: Composition:** Favor composition over large, monolithic components. Break UI into small, reusable, focused components.
+-   **React-RULE 3: Props Typing:** Define TypeScript `interface` for _all_ component props. Use `Readonly<Props>` if props shouldn't be mutated.
+-   **React-RULE 4: `use client` Minimization:** Use Server Components by default. Apply `'use client'` only when necessary (state, effects, event handlers, browser APIs). Place it at the component level, not the whole file unless unavoidable.
+-   **React-RULE 5: Server Component Data Fetching:** Fetch data directly within Server Components using `async/await`. Handle loading/error states using Suspense and Error Boundaries (`error.tsx`).
+-   **React-RULE 6: Optimistic Updates:** Use `useOptimistic` for UI updates that need to feel instantaneous during mutations (e.g., adding an item to a list before the API confirms).
+-   **React-RULE 7: Accessibility (a11y):** Ensure semantic HTML, keyboard navigation, ARIA attributes where needed. Follow Shadcn/Radix accessibility guidelines (e.g., `DialogTitle` in `DialogContent` even if visually hidden).
 
--   **RULE 1: Strict Mode:** Always use TypeScript's strict mode (`"strict": true` in `tsconfig.json`).
--   **RULE 2: No `any`:** Absolutely no use of the `any` type. Use `unknown` if the type is truly unknown, but then narrow it down with type guards. Prefer specific types, interfaces, or type aliases.
--   **RULE 3: Type Inference:** Leverage TypeScript's type inference where possible. Don't explicitly define types when the compiler can infer them correctly. _Example: `const count = 0;` (no need for `: number`) But be explicit with complex types._
--   **RULE 4: Interfaces for Objects:** Use interfaces to define the shape of objects and component props. _Example: `interface Product { id: string; name: string; price: number; }`_
--   **RULE 5: Type Aliases for Unions/Intersections:** Use type aliases for complex types created with unions (`|`) or intersections (`&`). _Example: `type ProductId = string | number;`_
--   **RULE 6: Generics:** Use generics to create reusable and type-safe components and functions that work with various types. Ensure generic type parameters are always used.
--   **RULE 7: Avoid `Number`, `String`, `Boolean`, `Symbol`, `Object`:** Use lowercase `number`, `string`, `boolean`, `symbol`, and `object` instead of their uppercase counterparts, which refer to boxed objects.
--   **RULE 8: Callback Return Types:** Do _not_ use `any` as the return type for callbacks whose values are ignored. Use `void` if the return value is intentionally ignored.
--   **RULE 9: Explicit `unknown`:** If a type is truly unknown at a certain point, use `unknown` rather than `any`. Then, use type guards (e.g., `typeof`, `instanceof`) to narrow the type before using the value.
--   **RULE 10: Consistent Types:** Maintain consistency between Supabase database types, Zod schemas, and TypeScript interfaces. Use the Supabase CLI to generate types from your database schema.
+### Data Fetching & State Rules (State)
 
-### Styling Rules
+-   **State-RULE 1: TanStack Query for Server State (Client):** Use TanStack Query (`useQuery`, `useMutation`) for managing server state _on the client_ (caching, background updates, mutations).
+-   **State-RULE 2: Query Keys:** Use descriptive array-based query keys: `['entity', 'list', { filters }]`, `['entity', 'detail', id]`. Example: `['products', 'list', { categoryId: 5 }]`, `['products', 'detail', productId]`.
+-   **State-RULE 3: Mutations & Invalidation:** Use `useMutation` for CUD operations. Invalidate relevant queries `onSuccess` or `onSettled` using `queryClient.invalidateQueries()`.
+-   **State-RULE 4: Optimistic Mutations (TanStack Query):** Implement optimistic updates via `useMutation`'s `onMutate`, `onError`, `onSettled` for complex client-side updates during mutations.
+-   **State-RULE 5: Loading/Error States:** Handle loading (`isLoading`, `isFetching`) and error (`isError`, `error`) states from `useQuery`/`useMutation`. Use Suspense for loading states where appropriate.
+-   **State-RULE 6: Type-Safe Queries:** Provide explicit types: `useQuery<ResponseType, ErrorType>({...})`.
+-   **State-RULE 7: Server Component Fetching:** Prefer direct `async/await` fetching in RSCs for read operations. TanStack Query can be used server-side with Hydration, but often adds complexity compared to direct fetching in RSCs.
+-   **State-RULE 8: Global Client State (Zustand):** Use Zustand for simple, global client-side state not tied to the server (e.g., UI toggles, non-persistent user preferences). Avoid overusing global state.
+-   **State-RULE 9: URL State:** Use Next.js router (`useSearchParams`) for state that should be reflected in the URL (filters, pagination, tabs).
 
--   **RULE 11: Tailwind First:** Use Tailwind CSS utility classes exclusively for styling. No custom CSS files or `style` props.
--   **RULE 12: Shadcn UI Components:** Use Shadcn UI components as the primary building blocks for all UI elements. Copy and paste components from the Shadcn UI documentation - just use them into the files, we will add later. Shadcn is already initialized. Check `components/ui` before adding them.
--   **RULE 13: Customize via Classes:** Customize Shadcn UI components only by adding or modifying Tailwind CSS classes. Do not directly edit the component's internal JSX.
--   **RULE 14: Responsiveness:** Use Tailwind's responsive modifiers (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) for all responsive styling.
--   **RULE 15: Consistent Design System:** Maintain consistent spacing, typography, and colors using Tailwind's configuration and Shadcn UI's theming.
--   **RULE 16: Dark Mode:** Ensure all components and styles support Shadcn UI's dark mode.
+### Form Rules (React Hook Form + Zod) (Form)
 
-### React Component Rules
+-   **Form-RULE 1: React Hook Form:** Use `react-hook-form` (`useForm`) for all form state management and submission.
+-   **Form-RULE 2: Zod Validation:** Define Zod schemas for _all_ form validation. Use `@hookform/resolvers/zod` for integration: `resolver: zodResolver(mySchema)`.
+-   **Form-RULE 3: Schema-Derived Types:** Derive form value types from Zod schemas using `z.infer<typeof mySchema>`.
+-   **Form-RULE 4: Shadcn Integration:** Use Shadcn UI's `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` components which are built on RHF's `<Controller>`.
+-   **Form-RULE 5: Error Display:** Display validation errors using `<FormMessage />` or by accessing `formState.errors`. Style errors consistently.
+-   **Form-RULE 6: Submission Handling:** Use RHF's `handleSubmit` function to wrap your submission logic. Handle submission state (e.g., disabling submit button using `formState.isSubmitting`).
+-   **Form-RULE 7: Server Validation:** Always re-validate data on the server (API Route or Server Action) using the same Zod schema, even if client-side validation passes.
+-   **Form-RULE 8: Resetting Forms:** Use `form.reset()` after successful submission or for discard functionality.
 
--   **RULE 17: Functional Components:** All components must be functional components using React Hooks. No class components.
--   **RULE 18: Hooks:** Use React Hooks (`useState`, `useEffect`, `useContext`, etc.) for state, side effects, and context.
--   **RULE 19: Component Composition:** Break down complex UI into smaller, reusable components.
--   **RULE 20: Props Typing:** Define TypeScript interfaces for _all_ component props.
--   **RULE 21: `use client` Sparingly:** Minimize the use of `'use client'` directives. Prefer Server Components where possible for improved performance. Use client components only when necessary for interactivity or browser-only APIs.
--   **RULE 22: No Inline Styles:** Do not use the `style` prop for styling. Use Tailwind CSS classes exclusively.
+### Table Rules (TanStack Table) (Table)
 
-### Data Fetching Rules (TanStack Query)
+-   **Table-RULE 1: TanStack Table Core:** Use `@tanstack/react-table` for headless table logic (sorting, filtering, pagination, selection).
+-   **Table-RULE 2: Shadcn Table Components:** Use Shadcn UI's `<Table>`, `<TableHeader>`, `<TableBody>`, `<TableRow>`, `<TableHead>`, `<TableCell>` components for styling the table structure.
+-   **Table-RULE 3: Column Definitions:** Define `ColumnDef[]` separately. Use `accessorKey` for direct property access, `accessorFn` for computed values, and `cell` for custom rendering. Ensure type safety (`ColumnDef<DataType>[]`).
+-   **Table-RULE 4: State Management:** Manage table state (sorting, filtering, pagination, row selection) using React state (`useState`) passed to TanStack Table hooks (`getCoreRowModel`, `getSortedRowModel`, etc.).
+-   **Table-RULE 5: Server-Side Operations:** For large datasets, implement server-side sorting, filtering, and pagination by passing the relevant state to your API/data fetching function and updating TanStack Table accordingly.
 
--   **RULE 23: TanStack Query Exclusively:** Use TanStack Query (`useQuery`, `useMutation`) for all data fetching. No direct `fetch` or `axios` calls.
--   **RULE 24: Query Key Structure:** Use array-based query keys: `['entity', 'identifier', { filters }]`. _Example: `['products', productId]`_
--   **RULE 25: Data Transformations:** Perform data transformations within `useQuery`'s `select` option or in separate helper functions.
--   **RULE 26: Mutations:** Use `useMutation` for create/update/delete. Invalidate queries after mutations. _Example: `queryClient.invalidateQueries(['products'])`_
--   **RULE 27: Loading/Error Handling:** Use TanStack Query's `isLoading`, `isFetching`, `isError`, and `error` for UI feedback.
--   **RULE 28: Type-Safe Queries:** Provide type parameters to `useQuery` and `useMutation` to ensure type safety. _Example: `useQuery<Product[], Error>(...)`_.
--   **RULE 29: `skipToken` for Conditional Queries:** Use `skipToken` to disable queries when necessary, while maintaining type safety.
+### Database Rules (Supabase) (DB)
 
-### Form Rules (TanStack Forms & Zod)
+-   **DB-RULE 1: Supabase Client:** Use the official `@supabase/supabase-js` client. Initialize it securely (use environment variables for URL and `anon` key for client-side, `service_role` key _only_ in secure backend environments like API routes/Server Actions).
+-   **DB-RULE 2: Backend Logic Layer:** Perform mutations (Create, Update, Delete) and sensitive read operations via Next.js API Routes or Server Actions. **Never expose the `service_role` key to the client.**
+-   **DB-RULE 3: RLS Mandatory:** Enable and configure Row Level Security (RLS) policies on **ALL** tables containing user data or sensitive information. Default to DENY. Test policies thoroughly.
+-   **DB-RULE 4: Secure Functions/Triggers:** When defining SQL functions/triggers (especially `SECURITY DEFINER`):
+    -   Explicitly set `search_path = "$user", public`.
+    -   Grant least privilege. Avoid `SECURITY DEFINER` unless absolutely necessary and fully understood.
+    -   Sanitize inputs within SQL (though primary validation should be in the backend code).
+-   **DB-RULE 5: Error Handling:** Always check for and handle the `error` object returned from Supabase client calls (`const { data, error } = await supabase...`).
+-   **DB-RULE 6: Migrations:** Use Supabase CLI for database schema migrations (`supabase migration`). Keep migration files in version control.
+-   **DB-RULE 7: Generated Types:** Use Supabase CLI to generate TypeScript types from your database schema (`supabase gen types typescript`). Commit the generated `supabase.ts` file.
+-   **DB-RULE 8: Use Views for Complex Reads:** Consider creating database VIEWS for complex, reusable read queries, especially for reporting. Ensure RLS applies to views if they expose sensitive data.
 
--   **RULE 30: TanStack Forms:** Use TanStack Forms (`useForm`) for all form management.
--   **RULE 31: Zod Schemas:** Define Zod schemas for all form validation. Use `@tanstack/zod-form-adapter`.
--   **RULE 32: Shadcn UI Form Components:** Use Shadcn UI components for form inputs. Use `useController`.
--   **RULE 33: Error Display:** Display errors using `formState.errors`. Style error messages consistently.
--   **RULE 34: Type-Safe Forms:** Ensure Zod schemas and form field types are consistent with TypeScript interfaces.
+### Code Organization & Conventions (Org)
 
-### Table Rules (TanStack Table)
+-   **Org-RULE 1: File Structure:** Maintain a clear structure. The proposed structure is good. Consider adding:
 
--   **RULE 35: TanStack Table:** Use TanStack Table for all tables. No direct `<table>` tags.
--   **RULE 36: Column Definitions:** Define column definitions separately. Specify `header`, `accessorKey` (or `accessorFn`).
--   **RULE 37: Features via Props:** Use TanStack Table's props for sorting, filtering, and pagination.
-
-### Database Rules (Supabase)
-
--   **RULE 38: Supabase Client:** Use `@supabase/supabase-js` for all Supabase interactions.
--   **RULE 39: API Routes:** Use Next.js API Routes (`/app/api`) for backend logic and database interactions. Do _not_ access Supabase directly from client components.
--   **RULE 40: Row Level Security (RLS):** Enable and configure RLS policies in Supabase for all tables. This is mandatory.
--   **RULE 41: Secure Supabase SQL:** When writing or suggesting SQL code for Supabase (especially for functions and triggers), adhere to secure coding practices. Specifically:
-    -   **Fixed `search_path`:** Always explicitly set the `search_path` to `$user,public` within function definitions to prevent privilege escalation vulnerabilities. _Example: `CREATE FUNCTION my_function() SECURITY DEFINER SET search_path = '$user', public ...`_
-    -   **Principle of Least Privilege:** Grant only the necessary permissions to database roles and functions. Avoid using `SECURITY DEFINER` unless absolutely necessary and with extreme caution.
-    -   **Input Validation & Sanitization:** Sanitize all user inputs in SQL queries to prevent SQL injection vulnerabilities. Use parameterized queries or prepared statements whenever possible (though less relevant for agent-suggested manual SQL, but important to keep in mind for backend API logic).
-    -   **Audit Logging:** Consider implementing audit logging for critical database operations.
-    -   **Regular Security Reviews:** Conduct regular security reviews of database schema, functions, and RLS policies.
--   **RULE 42: Error Handling with Supabase:** Handle the `error` that could be returned within the Supabase response.
-
-### Code Organization Rules
-
--   **RULE 43: File Structure:** Maintain a consistent file structure:
+    -   `src/hooks/`: For reusable custom hooks.
+    -   `src/actions/`: For Server Actions.
+    -   `src/queries/`: For reusable TanStack Query functions/keys.
+    -   `src/features/`: (Optional) For larger applications, consider a feature-sliced structure.
 
     ```
     src/
-    ├── middleware.ts                # Auth middleware for route protection
-    ├── app/                         # Next.js pages and layouts
-    │   ├── globals.css             # Global styles
-    │   ├── layout.tsx              # Root layout
-    │   ├── page.tsx               # Home page
-    │   ├── (auth)/                # Authentication routes group
-    │   │   └── _components/       # Auth-specific components
-    │   └── (authenticated)/       # Protected routes group
-    │       └── _components/       # Route-specific components
-    ├── components/                 # Shared components
-    │   ├── providers.tsx          # App providers (Auth, Query, Theme)
-    │   ├── layout/               # Layout components (header, etc.)
-    │   └── ui/                   # Shadcn UI components
-    ├── contexts/                  # React contexts
-    ├── lib/                      # Utility functions and setup
-    │   ├── constants/           # App constants
-    │   ├── supabase/           # Supabase client setup
-    │   └── validation/         # Zod schemas
-    └── types/                   # TypeScript types
-        └── supabase.ts         # Generated Supabase types
+    ├── middleware.ts              # Auth middleware
+    ├── app/                       # Next.js App Router
+    │   ├── api/                   # API Routes
+    │   ├── (auth)/                # Auth pages group
+    │   └── (authenticated)/       # Protected pages group
+    │       ├── dashboard/
+    │       ├── inventory/
+    │       └── _components/       # Shared components within this group
+    │   ├── layout.tsx             # Root layout
+    │   └── page.tsx               # Home page / Root page
+    ├── actions/                   # Server Actions
+    ├── components/               # Shared UI components across features
+    │   ├── providers.tsx          # Context/Query/Theme providers
+    │   ├── layout/               # Header, Sidebar etc.
+    │   └── ui/                   # Shadcn UI components (managed by CLI)
+    ├── contexts/                  # Shared React Contexts (use sparingly)
+    ├── hooks/                     # Custom reusable hooks
+    ├── lib/                      # Core utilities, clients, constants
+    │   ├── constants.ts           # App-wide constants
+    │   ├── supabase/             # Supabase client setup (client & server)
+    │   ├── utils.ts               # General utility functions
+    │   └── validation/           # Shared Zod schemas
+    ├── queries/                   # TanStack Query functions & keys
+    ├── styles/                    # Global styles (globals.css)
+    ├── types/                     # TypeScript types
+    │   └── supabase.ts           # Generated Supabase types
+    └── store/                     # Zustand store setup
     ```
 
--   **RULE 44: Naming Conventions:**
-    -   Components: PascalCase (e.g., `ProductCard.tsx`)
-    -   Files/Folders: kebab-case (e.g., `product-card.tsx`, `product-details`)
-    -   Variables/Functions: camelCase (e.g., `productName`, `fetchProducts`)
-    -   Constants: UPPER_SNAKE_CASE (e.g., `MAX_PRODUCTS`)
-    -   Hooks: `use` prefix (e.g., `useProductData`)
--   **RULE 45: Imports:** Use absolute imports with the `@` alias (configured in `tsconfig.json`). _Example: `import { Button } from '@/components/ui/button';`_
--   **RULE 46: Comments:** Use JSDoc comments for functions and components to improve IDE intellisense and documentation.
+-   **Org-RULE 2: Naming Conventions:**
+    -   Components/Types/Interfaces: `PascalCase` (`ProductTable.tsx`, `interface Product`)
+    -   Files/Folders: `kebab-case` (`product-table.tsx`, `lib/supabase`)
+    -   Variables/Functions: `camelCase` (`productName`, `fetchProducts`)
+    -   Constants: `UPPER_SNAKE_CASE` (`MAX_ITEMS_PER_PAGE`)
+    -   Custom Hooks: `useCamelCase` (`useProductData`)
+-   **Org-RULE 3: Absolute Imports:** Use absolute imports configured with `@/*` alias in `tsconfig.json`. (`import { Button } from '@/components/ui/button';`)
+-   **Org-RULE 4: JSDoc Comments:** Use JSDoc for functions, components, interfaces, and complex types to aid understanding and IDE intellisense.
+-   **Org-RULE 5: Feature Grouping:** Group related components, hooks, types, API routes, actions, and queries by feature where it makes sense (e.g., within `app/(authenticated)/inventory/` or a dedicated `src/features/inventory/` directory).
+
+### General Best Practices (Best)
+
+-   **Best-RULE 1: Error Handling & Logging:** Implement robust error handling at component, API, and global levels. Use Next.js `error.tsx` files. Integrate a logging service (e.g., Sentry, Logtail) for production error monitoring.
+-   **Best-RULE 2: Testing Strategy:**
+    -   Unit Test: Critical functions, utilities, complex calculations (Vitest).
+    -   Integration/Component Test: Components, forms, interactions (React Testing Library).
+    -   E2E Test: Key user flows (Login, Add Item, Create Sale) (Playwright).
+    -   Test RLS Policies: Write specific tests for Supabase RLS.
+-   **Best-RULE 3: Environment Variables:** Use `.env.local` for secrets (ignored by git). Use `.env` for non-secret defaults (committed). Prefix client-exposed variables with `NEXT_PUBLIC_`. Validate environment variables on startup.
+-   **Best-RULE 4: Security:** Regularly update dependencies (`npm audit`). Validate _all_ external input (user forms, API requests). Implement rate limiting on critical API routes. Be mindful of Supabase key exposure.
+-   **Best-RULE 5: Developer Experience:** Use Husky for pre-commit hooks (linting, formatting, testing). Consider Storybook for isolated UI component development and documentation.
+
+--- END OF RULES FILE ---

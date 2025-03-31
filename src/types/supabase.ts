@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      AuditLogs: {
+        Row: {
+          action: string
+          details: Json | null
+          entity: string
+          entity_id: string | null
+          id: number
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          details?: Json | null
+          entity: string
+          entity_id?: string | null
+          id?: number
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          details?: Json | null
+          entity?: string
+          entity_id?: string | null
+          id?: number
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -56,7 +86,6 @@ export type Database = {
       }
       InventoryItems: {
         Row: {
-          barcode: string | null
           category_id: string | null
           created_at: string
           description: string | null
@@ -65,14 +94,12 @@ export type Database = {
           purchase_price: number
           reorder_point: number | null
           selling_price: number
-          sku: string | null
           stock_quantity: number
           unit: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
-          barcode?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -81,14 +108,12 @@ export type Database = {
           purchase_price: number
           reorder_point?: number | null
           selling_price: number
-          sku?: string | null
           stock_quantity?: number
           unit: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
-          barcode?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -97,7 +122,6 @@ export type Database = {
           purchase_price?: number
           reorder_point?: number | null
           selling_price?: number
-          sku?: string | null
           stock_quantity?: number
           unit?: string
           updated_at?: string
@@ -143,8 +167,12 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          purchase_price: number | null
           quantity_change: number
           reason: string | null
+          reference_number: string | null
+          selling_price: number | null
+          total_price: number | null
           transaction_type: string
           user_id: string | null
         }
@@ -153,8 +181,12 @@ export type Database = {
           id?: string
           item_id: string
           notes?: string | null
+          purchase_price?: number | null
           quantity_change: number
           reason?: string | null
+          reference_number?: string | null
+          selling_price?: number | null
+          total_price?: number | null
           transaction_type: string
           user_id?: string | null
         }
@@ -163,8 +195,12 @@ export type Database = {
           id?: string
           item_id?: string
           notes?: string | null
+          purchase_price?: number | null
           quantity_change?: number
           reason?: string | null
+          reference_number?: string | null
+          selling_price?: number | null
+          total_price?: number | null
           transaction_type?: string
           user_id?: string | null
         }

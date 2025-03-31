@@ -82,7 +82,10 @@ export async function PUT(request: NextRequest, context: RouteParams) {
         const body = await request.json();
 
         // Validate the request body against our schema
-        const validationResult = inventoryItemUpdateSchema.safeParse(body);
+        const validationResult = inventoryItemUpdateSchema.safeParse({
+            ...body,
+            id: itemId,
+        });
         if (!validationResult.success) {
             return NextResponse.json(
                 {
@@ -94,8 +97,14 @@ export async function PUT(request: NextRequest, context: RouteParams) {
         }
 
         // Extract the validated data
-        const { itemName, categoryId, unit, purchasePrice, sellingPrice } =
-            validationResult.data;
+        const {
+            itemName,
+            categoryId,
+            purchasePrice,
+            sellingPrice,
+            reorder_point,
+            description,
+        } = validationResult.data;
 
         // Create a Supabase client with the async pattern
         const supabase = await createRouteHandlerSupabaseClient();
@@ -114,17 +123,20 @@ export async function PUT(request: NextRequest, context: RouteParams) {
             );
         }
 
-        // Update the inventory item
+        // Update the inventory item with only the fields that exist in the DB schema
         const { data, error } = await supabase
             .from("InventoryItems")
             .update({
                 item_name: itemName,
                 category_id: categoryId,
-                unit,
                 purchase_price: purchasePrice,
                 selling_price: sellingPrice,
+                reorder_point: reorder_point,
+                description: description,
+                updated_at: new Date().toISOString(), // Explicitly set updated_at
             })
             .eq("id", itemId)
+            .eq("user_id", user.id) // Ensure user owns the item via RLS check
             .select();
 
         if (error) {

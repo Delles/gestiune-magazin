@@ -1,9 +1,9 @@
 // src/app/(authenticated)/inventory/_components/stock-adjustment/components/StockAdjustmentTypeTabs.tsx
+// (Likely no changes needed, but ensure it's visually distinct)
 import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Minus } from "lucide-react";
-// Import the type from the main index file
-import type { StockAdjustmentType } from "../index";
+import type { StockAdjustmentType } from "../index"; // Use type from index
 
 interface StockAdjustmentTypeTabsProps {
     selectedType: StockAdjustmentType;
@@ -17,23 +17,21 @@ export function StockAdjustmentTypeTabs({
     return (
         <Tabs
             value={selectedType}
-            // Ensure the passed value is cast correctly if needed,
-            // though RHF's watch should provide the correct type.
             onValueChange={(value) =>
                 onTypeChange(value as StockAdjustmentType)
             }
             className="w-full"
         >
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="increase">
-                    <Plus className="mr-2 h-4 w-4" /> Increase Stock
+            {/* Make tabs more prominent with increased height and larger text */}
+            <TabsList className="grid w-full grid-cols-2 mb-6 h-11">
+                <TabsTrigger value="increase" className="text-base h-full">
+                    <Plus className="mr-2 h-5 w-5" /> Increase Stock
                 </TabsTrigger>
-                <TabsTrigger value="decrease">
-                    <Minus className="mr-2 h-4 w-4" /> Decrease Stock
+                <TabsTrigger value="decrease" className="text-base h-full">
+                    <Minus className="mr-2 h-5 w-5" /> Decrease Stock
                 </TabsTrigger>
             </TabsList>
-            {/* Tabs component only contains TabsList and TabsTrigger here */}
-            {/* The content associated with each tab value is handled outside */}
+            {/* Content is handled outside */}
         </Tabs>
     );
 }

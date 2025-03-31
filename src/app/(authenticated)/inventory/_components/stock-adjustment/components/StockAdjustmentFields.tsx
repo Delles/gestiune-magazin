@@ -9,7 +9,6 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
     Select,
@@ -28,11 +27,25 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, DollarSign, Hash } from "lucide-react";
+import {
+    CalendarIcon,
+    DollarSign,
+    Hash,
+    FileText,
+    Type,
+    Warehouse,
+    Info,
+} from "lucide-react";
 import {
     type StockAdjustmentFormValues,
     type TransactionType,
 } from "@/lib/validation/inventory-schemas"; // Adjust import if needed
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Assuming TRANSACTION_TYPES structure - define a type for it
 type TransactionTypeConfig = {
@@ -46,6 +59,7 @@ type TransactionTypeConfig = {
 
 interface StockAdjustmentFieldsProps {
     unit: string;
+    currentStock: number;
     isIncreaseType: boolean;
     showPriceFields: boolean;
     relevantTransactionTypes: TransactionType[];
@@ -56,6 +70,7 @@ interface StockAdjustmentFieldsProps {
 
 export function StockAdjustmentFields({
     unit,
+    currentStock,
     isIncreaseType,
     showPriceFields,
     relevantTransactionTypes,
@@ -63,32 +78,38 @@ export function StockAdjustmentFields({
     form,
     transactionTypesConfig,
 }: StockAdjustmentFieldsProps) {
-    const { control, setValue } = form;
-    const selectedTransactionType = form.watch("transactionType");
+    const { control, setValue, watch } = form;
+    const selectedTransactionType = watch("transactionType");
+    const quantity = watch("quantity");
 
-    // Get appropriate label for selling price field
-    const getSellingPriceLabel = () => {
-        if (selectedTransactionType === "sale") {
-            return "Selling Price (per unit)";
-        } else {
-            return "Item Value (per unit)";
-        }
-    };
+    const getSellingPriceLabel = () =>
+        selectedTransactionType === "sale"
+            ? "Selling Price (per unit)"
+            : "Item Value (per unit)";
+
+    const isDecreaseQuantityInvalid =
+        !isIncreaseType && quantity && quantity > currentStock;
 
     return (
-        <div className="space-y-4">
-            <Card>
-                <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-6">
+            {/* Section 1: Core Transaction Info */}
+            <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                    Transaction Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
                     <FormField
                         control={control}
                         name="transactionType"
                         render={({ field }) => (
-                            <FormItem className="min-h-[110px]">
-                                <FormLabel>Transaction Type</FormLabel>
+                            <FormItem>
+                                <FormLabel className="flex items-center">
+                                    <Type className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Type
+                                </FormLabel>
                                 <Select
                                     onValueChange={(value) => {
-                                        // Ensure we're using a valid transaction type
-                                        if (value && value !== "") {
+                                        if (value) {
                                             field.onChange(value);
                                             setValue("purchasePrice", null);
                                             setValue("sellingPrice", null);
@@ -137,7 +158,7 @@ export function StockAdjustmentFields({
                                 </Select>
                                 {field.value &&
                                     transactionTypesConfig[field.value] && (
-                                        <FormDescription>
+                                        <FormDescription className="text-xs">
                                             {
                                                 transactionTypesConfig[
                                                     field.value
@@ -149,13 +170,15 @@ export function StockAdjustmentFields({
                             </FormItem>
                         )}
                     />
-
                     <FormField
                         control={control}
                         name="date"
                         render={({ field }) => (
-                            <FormItem className="flex flex-col pt-2 min-h-[110px]">
-                                <FormLabel>Date</FormLabel>
+                            <FormItem className="flex flex-col">
+                                <FormLabel className="flex items-center mb-1.5">
+                                    <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Date
+                                </FormLabel>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <FormControl>
@@ -167,7 +190,6 @@ export function StockAdjustmentFields({
                                                         "text-muted-foreground"
                                                 )}
                                             >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
                                                 {field.value ? (
                                                     format(field.value, "PPP")
                                                 ) : (
@@ -196,232 +218,216 @@ export function StockAdjustmentFields({
                             </FormItem>
                         )}
                     />
-                </CardContent>
-            </Card>
-
-            <Card className="bg-muted/40">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-base">
-                        Transaction Details
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={control}
-                            name="quantity"
-                            render={({ field }) => (
-                                <FormItem className="min-h-[90px]">
-                                    <FormLabel>Quantity</FormLabel>
-                                    <div className="flex">
-                                        <FormControl>
-                                            <Input
-                                                {...field}
-                                                type="number"
-                                                step="any"
-                                                min="0.01"
-                                                placeholder="0.00"
-                                                className="rounded-r-none bg-background"
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    field.onChange(
-                                                        val === ""
-                                                            ? undefined
-                                                            : Number(val)
-                                                    );
-                                                }}
-                                                required
-                                            />
-                                        </FormControl>
-                                        <div className="flex items-center justify-center px-3 border border-l-0 rounded-r-md bg-muted/50 text-muted-foreground text-sm">
-                                            {unit}
-                                        </div>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        {showPriceFields && isIncreaseType && (
-                            <FormField
-                                control={control}
-                                name="purchasePrice"
-                                render={({ field }) => (
-                                    <FormItem className="min-h-[90px]">
-                                        <FormLabel>
-                                            Purchase Price (per unit)
-                                        </FormLabel>
-                                        <div className="flex">
-                                            <div className="flex items-center justify-center px-3 border border-r-0 rounded-l-md bg-muted/50 text-muted-foreground text-sm">
-                                                <DollarSign className="h-4 w-4" />
-                                            </div>
-                                            <FormControl>
-                                                <Input
-                                                    {...field}
-                                                    type="number"
-                                                    step="any"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    className="rounded-l-none bg-background"
-                                                    value={field.value ?? ""}
-                                                    onChange={(e) => {
-                                                        const val =
-                                                            e.target.value;
-                                                        field.onChange(
-                                                            val === ""
-                                                                ? null
-                                                                : Number(val)
-                                                        );
-                                                    }}
-                                                />
-                                            </FormControl>
-                                        </div>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        )}
-
-                        {showPriceFields && !isIncreaseType && (
-                            <FormField
-                                control={control}
-                                name="sellingPrice"
-                                render={({ field }) => (
-                                    <FormItem className="min-h-[90px]">
-                                        <FormLabel>
-                                            {getSellingPriceLabel()}
-                                        </FormLabel>
-                                        <div className="flex">
-                                            <div className="flex items-center justify-center px-3 border border-r-0 rounded-l-md bg-muted/50 text-muted-foreground text-sm">
-                                                <DollarSign className="h-4 w-4" />
-                                            </div>
-                                            <FormControl>
-                                                <Input
-                                                    {...field}
-                                                    type="number"
-                                                    step="any"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    className="rounded-l-none bg-background"
-                                                    value={field.value ?? ""}
-                                                    onChange={(e) => {
-                                                        const val =
-                                                            e.target.value;
-                                                        field.onChange(
-                                                            val === ""
-                                                                ? null
-                                                                : Number(val)
-                                                        );
-                                                    }}
-                                                />
-                                            </FormControl>
-                                        </div>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        )}
-                    </div>
-
-                    {showPriceFields && (
-                        <FormField
-                            control={control}
-                            name="totalPrice"
-                            render={({ field }) => (
-                                <FormItem className="min-h-[90px]">
-                                    <FormLabel>Total Price / Value</FormLabel>
-                                    <div className="flex">
-                                        <div className="flex items-center justify-center px-3 border border-r-0 rounded-l-md bg-muted/50 text-muted-foreground text-sm">
-                                            <DollarSign className="h-4 w-4" />
-                                        </div>
-                                        <FormControl>
-                                            <Input
-                                                {...field}
-                                                type="number"
-                                                step="any"
-                                                min="0"
-                                                placeholder="0.00"
-                                                className="rounded-l-none bg-background"
-                                                value={field.value ?? ""}
-                                                onChange={(e) =>
-                                                    handleTotalPriceChange(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                onBlur={field.onBlur}
-                                            />
-                                        </FormControl>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    )}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-base">
-                        Additional Information
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={control}
-                            name="referenceNumber"
-                            render={({ field }) => (
-                                <FormItem className="min-h-[90px]">
-                                    <FormLabel>
-                                        Reference # (Optional)
-                                    </FormLabel>
-                                    <div className="relative">
-                                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <FormControl>
-                                            <Input
-                                                {...field}
-                                                placeholder="e.g., PO-123, INV-456"
-                                                className="pl-8 bg-background"
-                                                value={field.value ?? ""}
-                                                onChange={(e) =>
-                                                    field.onChange(
-                                                        e.target.value || ""
-                                                    )
-                                                }
-                                            />
-                                        </FormControl>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-
                     <FormField
                         control={control}
-                        name="reason"
+                        name="quantity"
                         render={({ field }) => (
-                            <FormItem className="min-h-[90px]">
-                                <FormLabel>Reason / Notes (Optional)</FormLabel>
+                            <FormItem>
+                                <FormLabel className="flex items-center">
+                                    <Warehouse className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Quantity
+                                </FormLabel>
+                                <div className="flex">
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            type="number"
+                                            step="any"
+                                            min="0.01"
+                                            placeholder="0.00"
+                                            className={cn(
+                                                "rounded-r-none bg-background",
+                                                isDecreaseQuantityInvalid &&
+                                                    "border-destructive focus-visible:ring-destructive/50"
+                                            )}
+                                            value={field.value ?? ""}
+                                            onChange={(e) =>
+                                                field.onChange(
+                                                    e.target.value === ""
+                                                        ? undefined
+                                                        : Number(e.target.value)
+                                                )
+                                            }
+                                            required
+                                        />
+                                    </FormControl>
+                                    <div className="flex items-center justify-center px-3 border border-l-0 rounded-r-md bg-muted/50 text-muted-foreground text-sm">
+                                        {unit}
+                                    </div>
+                                </div>
+                                {!isIncreaseType && (
+                                    <FormDescription className="text-xs">
+                                        Current stock: {currentStock} {unit}
+                                    </FormDescription>
+                                )}
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+            </div>
+
+            {/* Section 2: Pricing (Conditional) */}
+            {showPriceFields && (
+                <div className="space-y-4 pt-4 border-t border-dashed">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                        Pricing / Value
+                    </h3>
+                    <div className="p-4 rounded-md bg-muted/30 border space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
+                            {/* Unit Price (Purchase or Selling) */}
+                            <FormField
+                                control={control}
+                                name={
+                                    isIncreaseType
+                                        ? "purchasePrice"
+                                        : "sellingPrice"
+                                }
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>
+                                            {isIncreaseType
+                                                ? "Purchase Price (per unit)"
+                                                : getSellingPriceLabel()}
+                                        </FormLabel>
+                                        <div className="relative">
+                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    min="0"
+                                                    placeholder="0.00"
+                                                    className="pl-8 bg-background"
+                                                    {...field}
+                                                    value={field.value ?? ""}
+                                                    onChange={(e) =>
+                                                        field.onChange(
+                                                            e.target.value ===
+                                                                ""
+                                                                ? null
+                                                                : Number(
+                                                                      e.target
+                                                                          .value
+                                                                  )
+                                                        )
+                                                    }
+                                                />
+                                            </FormControl>
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            {/* Total Price */}
+                            <FormField
+                                control={control}
+                                name="totalPrice"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>
+                                            <TooltipProvider
+                                                delayDuration={100}
+                                            >
+                                                <Tooltip>
+                                                    <TooltipTrigger className="flex items-center cursor-help">
+                                                        Total Price / Value{" "}
+                                                        <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent
+                                                        side="top"
+                                                        className="max-w-xs text-xs p-2"
+                                                    >
+                                                        Enter total amount or
+                                                        unit price. Entering one
+                                                        will auto-calculate the
+                                                        other if quantity is
+                                                        set. Manually entering
+                                                        total overrides
+                                                        auto-calculation.
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </FormLabel>
+                                        <div className="relative">
+                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    min="0"
+                                                    placeholder="0.00"
+                                                    className="pl-8 bg-background"
+                                                    {...field}
+                                                    value={field.value ?? ""}
+                                                    onChange={(e) =>
+                                                        handleTotalPriceChange(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    onBlur={field.onBlur}
+                                                />
+                                            </FormControl>
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Section 3: Additional Info (Optional) */}
+            <div className="space-y-4 pt-4 border-t border-dashed">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                    Additional Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
+                    <FormField
+                        control={control}
+                        name="referenceNumber"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="flex items-center">
+                                    <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Reference # (Optional)
+                                </FormLabel>
                                 <FormControl>
-                                    <Textarea
+                                    <Input
+                                        placeholder="e.g., PO-123, INV-456"
+                                        className="bg-background"
                                         {...field}
-                                        placeholder="Add any relevant notes or details..."
-                                        className="bg-background min-h-[80px]"
                                         value={field.value ?? ""}
-                                        onChange={(e) =>
-                                            field.onChange(e.target.value || "")
-                                        }
                                     />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-                </CardContent>
-            </Card>
+                </div>
+                <FormField
+                    control={control}
+                    name="reason"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center">
+                                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                                Reason / Notes (Optional)
+                            </FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    placeholder="Add any relevant details..."
+                                    className="bg-background min-h-[80px]"
+                                    {...field}
+                                    value={field.value ?? ""}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
         </div>
     );
 }

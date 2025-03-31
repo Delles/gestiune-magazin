@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type HTMLAttributes } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
@@ -69,20 +69,19 @@ const signupFormSchema = z
  */
 type SignupFormValues = z.infer<typeof signupFormSchema>;
 
+// Define the specific props type alias
+type SignupFormProps = HTMLAttributes<HTMLDivElement>;
+
 /**
  * Signup form component for user registration
  *
  * Handles new user registration via Supabase authentication,
  * form validation, and redirects after successful signup.
  *
- * @param {object} props - Component props
- * @param {string} [props.className] - Optional CSS class name
+ * @param {Readonly<SignupFormProps>} props - Component props
  * @returns {JSX.Element} The signup form component
  */
-export function SignupForm({
-    className,
-    ...props
-}: React.ComponentProps<"div">) {
+export function SignupForm({ className, ...props }: Readonly<SignupFormProps>) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [signupError, setSignupError] = useState<string | null>(null);
     const [showPasswordRequirements, setShowPasswordRequirements] =

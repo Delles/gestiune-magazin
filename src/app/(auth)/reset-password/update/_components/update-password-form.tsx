@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
-import { useState, useMemo } from "react";
+import { useState, useMemo, type HTMLAttributes } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,21 +52,23 @@ const updatePasswordFormSchema = z
  */
 type UpdatePasswordFormValues = z.infer<typeof updatePasswordFormSchema>;
 
+// Define the specific props type alias
+type UpdatePasswordFormProps = HTMLAttributes<HTMLDivElement>;
+
 /**
  * Form component for updating user password
  *
  * Allows users to set a new password after requesting a password reset.
  * Validates password requirements and handles submission to Supabase.
  *
- * @param {object} props - Component props
- * @param {string} [props.className] - Optional CSS class name
+ * @param {Readonly<UpdatePasswordFormProps>} props - Component props
  * @returns {JSX.Element} The password update form component
  */
 
 export function UpdatePasswordForm({
     className,
     ...props
-}: React.ComponentProps<"div">) {
+}: Readonly<UpdatePasswordFormProps>) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [updateError, setUpdateError] = useState<string | null>(null);
     const router = useRouter();

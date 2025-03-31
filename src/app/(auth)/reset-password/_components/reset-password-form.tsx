@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useMemo } from "react";
+import { useState, useMemo, type HTMLAttributes } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -38,20 +38,22 @@ const resetPasswordFormSchema = z.object({
  */
 type ResetPasswordFormValues = z.infer<typeof resetPasswordFormSchema>;
 
+// Define the specific props type alias
+type ResetPasswordFormProps = HTMLAttributes<HTMLDivElement>;
+
 /**
  * Password reset request form component
  *
  * Allows users to request a password reset email by providing their email address.
  * Handles form validation and submission to Supabase auth API.
  *
- * @param {object} props - Component props
- * @param {string} [props.className] - Optional CSS class name
+ * @param {Readonly<ResetPasswordFormProps>} props - Component props
  * @returns {JSX.Element} The password reset request form component
  */
 export function ResetPasswordForm({
     className,
     ...props
-}: React.ComponentProps<"div">) {
+}: Readonly<ResetPasswordFormProps>) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [resetError, setResetError] = useState<string | null>(null);
     const [resetSuccess, setResetSuccess] = useState(false);

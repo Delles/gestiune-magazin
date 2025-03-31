@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type HTMLAttributes } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,20 +42,23 @@ const loginFormSchema = z.object({
  */
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
+// Define the specific props type alias
+type LoginFormProps = HTMLAttributes<HTMLDivElement>;
+// No specific custom props needed based on current usage
+// interface LoginFormProps extends HTMLAttributes<HTMLDivElement> {
+//     // No specific custom props needed based on current usage
+// }
+
 /**
  * Login form component for user authentication
  *
  * Handles user login via Supabase authentication, form validation,
  * and redirects after successful login.
  *
- * @param {object} props - Component props
- * @param {string} [props.className] - Optional CSS class name
+ * @param {Readonly<LoginFormProps>} props - Component props
  * @returns {JSX.Element} The login form component
  */
-export function LoginForm({
-    className,
-    ...props
-}: React.ComponentProps<"div">) {
+export function LoginForm({ className, ...props }: Readonly<LoginFormProps>) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
     const router = useRouter();

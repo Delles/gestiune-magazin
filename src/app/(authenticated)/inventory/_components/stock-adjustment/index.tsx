@@ -13,7 +13,7 @@ import {
     PackageCheck,
     Store,
     PackageX,
-    AlertTriangle,
+    AlertTriangle as AlertTriangleIcon,
     AlertCircle,
     ArrowUp,
     ArrowDown,
@@ -24,6 +24,7 @@ import {
     type StockAdjustmentFormValues,
 } from "@/lib/validation/inventory-schemas";
 import { adjustInventoryItemStock } from "@/services/inventoryService";
+import { toast } from "sonner";
 
 // --- Shadcn UI Form Imports ---
 import { Form } from "@/components/ui/form";
@@ -32,11 +33,10 @@ import { Form } from "@/components/ui/form";
 // UI Components used by main layout or actions
 // Removed: import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-// Removed: import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Sub-components
-import { StockAdjustmentHeader } from "./components/StockAdjustmentHeader";
 import { FeedbackMessages } from "./components/FeedbackMessages";
 import { StockAdjustmentTypeTabs } from "./components/StockAdjustmentTypeTabs";
 import { StockAdjustmentFields } from "./components/StockAdjustmentFields";
@@ -51,6 +51,7 @@ interface StockAdjustmentFormProps {
     unit: string;
     currentStock: number;
     onSuccess?: () => void;
+    onClose?: () => void;
     initialType?: StockAdjustmentType;
 }
 
@@ -103,7 +104,7 @@ const TRANSACTION_TYPES: Record<TransactionType, TransactionTypeConfig> = {
     },
     loss: {
         label: "Loss",
-        icon: <AlertTriangle className="h-4 w-4" />,
+        icon: <AlertTriangleIcon className="h-4 w-4" />,
         description: "Stock lost or stolen",
         requiresPrice: true, // Value of the lost goods
     },
@@ -134,6 +135,7 @@ export default function StockAdjustmentForm({
     unit,
     currentStock,
     onSuccess,
+    onClose,
     initialType = "increase",
 }: StockAdjustmentFormProps) {
     const queryClient = useQueryClient();
@@ -202,29 +204,23 @@ export default function StockAdjustmentForm({
 
     // Effect for Total Price Calculation (adapt to use form.setValue)
     useEffect(() => {
-        if (!showPriceFields) return;
+        if (!showPriceFields || !quantity || quantity <= 0) {
+            // If price fields aren't shown or quantity invalid, ensure total is nullified if not manually set
+            if (!form.formState.dirtyFields.totalPrice)
+                form.setValue("totalPrice", null);
+            return;
+        }
 
-        const qty = Number(quantity) || 0;
-        if (qty <= 0) return;
+        const qty = Number(quantity);
+        const price = isIncreaseType
+            ? Number(purchasePrice ?? 0)
+            : Number(sellingPrice ?? 0);
 
-        const isTotalPriceManuallySet = form.formState.dirtyFields.totalPrice;
-
-        if (isIncreaseType) {
-            const price = Number(purchasePrice) || 0;
-            if (price > 0 && !isTotalPriceManuallySet) {
-                form.setValue(
-                    "totalPrice",
-                    Number((qty * price).toFixed(2)),
-                    { shouldValidate: true } // Optionally validate after setting
-                );
-            }
-        } else {
-            const price = Number(sellingPrice) || 0;
-            if (price > 0 && !isTotalPriceManuallySet) {
-                form.setValue("totalPrice", Number((qty * price).toFixed(2)), {
-                    shouldValidate: true,
-                });
-            }
+        // Only auto-calculate if total price wasn't manually entered AND price is valid
+        if (!form.formState.dirtyFields.totalPrice && price > 0) {
+            form.setValue("totalPrice", Number((qty * price).toFixed(2)), {
+                shouldValidate: true,
+            });
         }
     }, [
         quantity,
@@ -238,8 +234,7 @@ export default function StockAdjustmentForm({
     // Handler for Total Price Change (adapt to use form.setValue)
     const handleTotalPriceChange = (value: string | number) => {
         const numValue = Number(value) || 0;
-        // Set total price first, mark as dirty
-        form.setValue("totalPrice", numValue, {
+        form.setValue("totalPrice", numValue > 0 ? numValue : null, {
             shouldDirty: true,
             shouldValidate: true,
         });
@@ -247,42 +242,40 @@ export default function StockAdjustmentForm({
         const qty = Number(quantity) || 0;
         if (qty > 0 && numValue >= 0) {
             const unitPrice = Number((numValue / qty).toFixed(2));
-            if (isIncreaseType) {
-                form.setValue("purchasePrice", unitPrice, {
-                    shouldValidate: true,
-                });
-            } else {
-                form.setValue("sellingPrice", unitPrice, {
-                    shouldValidate: true,
-                });
-            }
+            const priceField = isIncreaseType
+                ? "purchasePrice"
+                : "sellingPrice";
+            const otherPriceField = isIncreaseType
+                ? "sellingPrice"
+                : "purchasePrice";
+            form.setValue(priceField, unitPrice > 0 ? unitPrice : null, {
+                shouldValidate: true,
+            });
+            form.setValue(otherPriceField, null); // Clear the other price field
         }
     };
 
     // Handler for Type Change (using setValue instead of reset)
     const handleTypeChange = (type: StockAdjustmentType) => {
         const newTransactionType = type === "increase" ? "purchase" : "sale";
-
-        // Set values individually
-        form.setValue("type", type);
-        form.setValue("transactionType", newTransactionType);
-        // Reset and clear values that depend on type/transaction type
-        form.setValue("quantity", 0);
-        form.setValue("purchasePrice", null);
-        form.setValue("sellingPrice", null);
-        form.setValue("totalPrice", null);
-
-        // Re-validate the form after changing values
-        form.trigger();
-
-        // Clear any previous server errors
-        setServerError(null);
+        form.reset({
+            // Reset preserves date and passed initialType
+            ...form.getValues(), // Keep existing values like date
+            type: type,
+            transactionType: newTransactionType,
+            quantity: undefined,
+            purchasePrice: null,
+            sellingPrice: null,
+            totalPrice: null,
+            referenceNumber: form.getValues("referenceNumber"), // Keep ref/reason if needed
+            reason: form.getValues("reason"),
+        });
+        setServerError(null); // Clear errors on type change
     };
 
     // --- RHF Submit Handler ---
     const onSubmit = (values: StockAdjustmentFormValues) => {
         setServerError(null);
-        // Manual validation (already done by resolver, but good for extra checks)
         if (values.type === "decrease" && values.quantity > currentStock) {
             form.setError("quantity", {
                 type: "manual",
@@ -290,7 +283,21 @@ export default function StockAdjustmentForm({
             });
             return;
         }
-        mutation.mutate(values);
+
+        // Format data before sending
+        const dataToSend = {
+            ...values,
+            quantity: Number(values.quantity || 0), // Ensure quantity is a number
+            purchasePrice: values.purchasePrice
+                ? Number(values.purchasePrice)
+                : null,
+            sellingPrice: values.sellingPrice
+                ? Number(values.sellingPrice)
+                : null,
+            totalPrice: values.totalPrice ? Number(values.totalPrice) : null,
+            date: values.date ?? new Date(), // Ensure date is set
+        };
+        mutation.mutate(dataToSend);
     };
     // --- End RHF Submit Handler ---
 
@@ -298,27 +305,31 @@ export default function StockAdjustmentForm({
         mutationFn: (values: StockAdjustmentFormValues) =>
             adjustInventoryItemStock(itemId, values),
         onSuccess: (data) => {
+            // Invalidate relevant queries to refresh data
             queryClient.invalidateQueries({
-                queryKey: ["inventoryItem", itemId, "transactions"],
+                queryKey: ["stockTransactions", itemId],
             });
             queryClient.invalidateQueries({
                 queryKey: ["inventoryItem", itemId],
             });
             queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
+            queryClient.invalidateQueries({ queryKey: ["inventoryStats"] });
+
             setShowSuccess(true);
             form.reset(); // Reset form on success
+            toast.success(data.message || "Stock adjusted successfully!"); // Use API message
             setTimeout(() => {
                 setShowSuccess(false);
                 onSuccess?.();
-            }, 2000);
-            console.log("Stock adjustment success:", data);
+            }, 1500); // Slightly faster close
         },
         onError: (error) => {
-            setServerError(
+            const errorMsg =
                 error instanceof Error
                     ? error.message
-                    : "An unexpected error occurred"
-            );
+                    : "An unexpected error occurred";
+            setServerError(errorMsg);
+            toast.error(`Error: ${errorMsg}`);
         },
     });
 
@@ -327,13 +338,21 @@ export default function StockAdjustmentForm({
             <Form {...form}>
                 <form
                     onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-4"
+                    className="space-y-6"
                 >
-                    <StockAdjustmentHeader
-                        itemName={itemName}
-                        currentStock={currentStock}
-                        unit={unit}
-                    />
+                    {/* Integrated Header Info */}
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 px-1 mb-4">
+                        <h2 className="text-lg font-semibold truncate">
+                            Adjust Stock:{" "}
+                            <span className="text-primary">{itemName}</span>
+                        </h2>
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground shrink-0">
+                            <span>Current Stock:</span>
+                            <Badge variant="secondary" className="text-base">
+                                {currentStock} {unit}
+                            </Badge>
+                        </div>
+                    </div>
 
                     <FeedbackMessages
                         serverError={serverError}
@@ -348,6 +367,7 @@ export default function StockAdjustmentForm({
                     <StockAdjustmentFields
                         form={form}
                         unit={unit}
+                        currentStock={currentStock}
                         isIncreaseType={isIncreaseType}
                         showPriceFields={showPriceFields}
                         relevantTransactionTypes={relevantTransactionTypes}
@@ -361,6 +381,7 @@ export default function StockAdjustmentForm({
                         isSubmitting={form.formState.isSubmitting}
                         isPending={mutation.isPending}
                         isIncreaseType={isIncreaseType}
+                        onClose={onClose}
                     />
                 </form>
             </Form>
