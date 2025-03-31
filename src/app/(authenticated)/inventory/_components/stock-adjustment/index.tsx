@@ -167,9 +167,11 @@ export default function StockAdjustmentForm({
     const quantity = form.watch("quantity");
     const purchasePrice = form.watch("purchasePrice");
     const sellingPrice = form.watch("sellingPrice");
+    const totalPrice = form.watch("totalPrice");
     // --- End RHF watch ---
 
     const isIncreaseType = selectedType === "increase";
+
     const relevantTransactionTypes = useMemo(() => {
         return isIncreaseType
             ? Object.entries(TRANSACTION_TYPES)
@@ -231,6 +233,72 @@ export default function StockAdjustmentForm({
         form,
     ]);
 
+    // Handler for Quantity Change
+    const handleQuantityChange = (qtyValue: string | number | undefined) => {
+        // Convert empty string to a very small number that will fail validation
+        // but still satisfy the type system
+        const valueIsEmpty = qtyValue === "" || qtyValue === undefined;
+
+        if (valueIsEmpty) {
+            // Use 0 as fallback to satisfy type system, the validation will catch it as invalid
+            form.setValue("quantity", 0, {
+                shouldValidate: true,
+                shouldDirty: true,
+            });
+
+            // Clear total price if not manually set
+            if (!form.formState.dirtyFields.totalPrice) {
+                form.setValue("totalPrice", null);
+            }
+            return;
+        }
+
+        // Parse the quantity
+        const newQty = Number(qtyValue);
+
+        // Set the form value
+        form.setValue("quantity", newQty, {
+            shouldValidate: true,
+            shouldDirty: true,
+        });
+
+        if (newQty <= 0) {
+            // If quantity becomes invalid, just clear the total if not manually set
+            if (!form.formState.dirtyFields.totalPrice) {
+                form.setValue("totalPrice", null);
+            }
+            return;
+        }
+
+        // If we have a unit price (purchase or selling), recalculate the total
+        const unitPrice = isIncreaseType
+            ? Number(purchasePrice ?? 0)
+            : Number(sellingPrice ?? 0);
+
+        if (unitPrice > 0) {
+            // Update total based on new quantity and existing unit price
+            form.setValue(
+                "totalPrice",
+                Number((newQty * unitPrice).toFixed(2)),
+                {
+                    shouldValidate: true,
+                }
+            );
+        } else if (totalPrice) {
+            // If we have a total but no unit price, calculate the unit price
+            const calculatedUnitPrice = Number(
+                (Number(totalPrice) / newQty).toFixed(2)
+            );
+            const priceField = isIncreaseType
+                ? "purchasePrice"
+                : "sellingPrice";
+
+            form.setValue(priceField, calculatedUnitPrice, {
+                shouldValidate: true,
+            });
+        }
+    };
+
     // Handler for Total Price Change (adapt to use form.setValue)
     const handleTotalPriceChange = (value: string | number) => {
         const numValue = Number(value) || 0;
@@ -252,6 +320,30 @@ export default function StockAdjustmentForm({
                 shouldValidate: true,
             });
             form.setValue(otherPriceField, null); // Clear the other price field
+        }
+    };
+
+    // Handler for Unit Price Change
+    const handleUnitPriceChange = (value: string | number) => {
+        const numValue = Number(value) || 0;
+        const priceField = isIncreaseType ? "purchasePrice" : "sellingPrice";
+
+        form.setValue(priceField, numValue > 0 ? numValue : null, {
+            shouldDirty: true,
+            shouldValidate: true,
+        });
+
+        const qty = Number(quantity) || 0;
+        if (qty > 0 && numValue > 0) {
+            // Calculate and update total price
+            form.setValue("totalPrice", Number((qty * numValue).toFixed(2)), {
+                shouldValidate: true,
+            });
+        } else if (!numValue) {
+            // If unit price cleared, clear total price too unless manually set
+            if (!form.formState.dirtyFields.totalPrice) {
+                form.setValue("totalPrice", null);
+            }
         }
     };
 
@@ -372,6 +464,8 @@ export default function StockAdjustmentForm({
                         showPriceFields={showPriceFields}
                         relevantTransactionTypes={relevantTransactionTypes}
                         handleTotalPriceChange={handleTotalPriceChange}
+                        handleQuantityChange={handleQuantityChange}
+                        handleUnitPriceChange={handleUnitPriceChange}
                         transactionTypesConfig={TRANSACTION_TYPES}
                     />
 

@@ -35,6 +35,7 @@ import {
     Type,
     Warehouse,
     Info,
+    AlertCircle,
 } from "lucide-react";
 import {
     type StockAdjustmentFormValues,
@@ -64,6 +65,8 @@ interface StockAdjustmentFieldsProps {
     showPriceFields: boolean;
     relevantTransactionTypes: TransactionType[];
     handleTotalPriceChange: (value: string | number) => void;
+    handleQuantityChange: (value: string | number | undefined) => void;
+    handleUnitPriceChange: (value: string | number) => void;
     form: UseFormReturn<StockAdjustmentFormValues>;
     transactionTypesConfig: TransactionTypeConfig;
 }
@@ -75,12 +78,16 @@ export function StockAdjustmentFields({
     showPriceFields,
     relevantTransactionTypes,
     handleTotalPriceChange,
+    handleQuantityChange,
+    handleUnitPriceChange,
     form,
     transactionTypesConfig,
 }: StockAdjustmentFieldsProps) {
     const { control, setValue, watch } = form;
     const selectedTransactionType = watch("transactionType");
     const quantity = watch("quantity");
+    const totalPrice = watch("totalPrice");
+    const unitPrice = watch(isIncreaseType ? "purchasePrice" : "sellingPrice");
 
     const getSellingPriceLabel = () =>
         selectedTransactionType === "sale"
@@ -89,6 +96,12 @@ export function StockAdjustmentFields({
 
     const isDecreaseQuantityInvalid =
         !isIncreaseType && quantity && quantity > currentStock;
+
+    // Determine if price fields should be disabled (no quantity entered)
+    const isPriceFieldsDisabled = !quantity || quantity <= 0;
+
+    // Check if prices have been entered
+    const hasPriceData = totalPrice || unitPrice;
 
     return (
         <div className="space-y-6">
@@ -242,10 +255,8 @@ export function StockAdjustmentFields({
                                             )}
                                             value={field.value ?? ""}
                                             onChange={(e) =>
-                                                field.onChange(
-                                                    e.target.value === ""
-                                                        ? undefined
-                                                        : Number(e.target.value)
+                                                handleQuantityChange(
+                                                    e.target.value
                                                 )
                                             }
                                             required
@@ -258,6 +269,13 @@ export function StockAdjustmentFields({
                                 {!isIncreaseType && (
                                     <FormDescription className="text-xs">
                                         Current stock: {currentStock} {unit}
+                                    </FormDescription>
+                                )}
+                                {hasPriceData && (
+                                    <FormDescription className="text-xs flex items-center mt-1 text-amber-500 dark:text-amber-400">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        Changing quantity will update the total
+                                        price calculation
                                     </FormDescription>
                                 )}
                                 <FormMessage />
@@ -274,6 +292,15 @@ export function StockAdjustmentFields({
                         Pricing / Value
                     </h3>
                     <div className="p-4 rounded-md bg-muted/30 border space-y-4">
+                        {isPriceFieldsDisabled && (
+                            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start mb-3">
+                                <AlertCircle className="h-3.5 w-3.5 mr-2 mt-0.5 flex-shrink-0" />
+                                <span>
+                                    Please enter a quantity above to enable
+                                    price fields
+                                </span>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
                             {/* Unit Price (Purchase or Selling) */}
                             <FormField
@@ -302,19 +329,23 @@ export function StockAdjustmentFields({
                                                     {...field}
                                                     value={field.value ?? ""}
                                                     onChange={(e) =>
-                                                        field.onChange(
-                                                            e.target.value ===
-                                                                ""
-                                                                ? null
-                                                                : Number(
-                                                                      e.target
-                                                                          .value
-                                                                  )
+                                                        handleUnitPriceChange(
+                                                            e.target.value
                                                         )
+                                                    }
+                                                    disabled={
+                                                        isPriceFieldsDisabled
                                                     }
                                                 />
                                             </FormControl>
                                         </div>
+                                        {totalPrice && (
+                                            <FormDescription className="text-xs flex items-center mt-1">
+                                                <Info className="h-3 w-3 mr-1" />
+                                                Changing unit price will update
+                                                total
+                                            </FormDescription>
+                                        )}
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -366,9 +397,19 @@ export function StockAdjustmentFields({
                                                         )
                                                     }
                                                     onBlur={field.onBlur}
+                                                    disabled={
+                                                        isPriceFieldsDisabled
+                                                    }
                                                 />
                                             </FormControl>
                                         </div>
+                                        {unitPrice && (
+                                            <FormDescription className="text-xs flex items-center mt-1">
+                                                <Info className="h-3 w-3 mr-1" />
+                                                Changing total will update unit
+                                                price
+                                            </FormDescription>
+                                        )}
                                         <FormMessage />
                                     </FormItem>
                                 )}
