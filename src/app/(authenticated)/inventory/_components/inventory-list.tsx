@@ -70,7 +70,6 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import InventoryItemForm from "./inventory-item-form";
 import StockAdjustmentForm from "./stock-adjustment";
 import { useRouter } from "next/navigation";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
@@ -85,6 +84,8 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
+import AddItemForm from "./add-item-form";
+import EditItemForm from "./edit-item-form";
 
 // Define types
 type InventoryItem = {
@@ -93,12 +94,14 @@ type InventoryItem = {
     category_id: string | null;
     category_name?: string;
     unit: string;
-    purchase_price: number;
+    initial_purchase_price: number;
     selling_price: number;
     stock_quantity: number;
     reorder_point: number | null; // Ensure this is present
     created_at: string;
     updated_at: string;
+    last_purchase_price: number | null; // NEW
+    average_purchase_price: number | null; // NEW
 };
 
 type Category = {
@@ -358,7 +361,7 @@ export default function InventoryList() {
                 // enableColumnFilter: true, // Enable filtering
             },
             {
-                accessorKey: "purchase_price",
+                accessorKey: "initial_purchase_price",
                 header: ({ column }) => (
                     <SortableHeader column={column} align="right">
                         Purchase Price
@@ -366,7 +369,20 @@ export default function InventoryList() {
                 ),
                 cell: ({ row }) => (
                     <div className="text-right font-mono text-sm">
-                        {formatCurrency(row.getValue("purchase_price"))}
+                        {formatCurrency(row.getValue("initial_purchase_price"))}
+                    </div>
+                ),
+            },
+            {
+                accessorKey: "last_purchase_price",
+                header: ({ column }) => (
+                    <SortableHeader column={column} align="right">
+                        Last Purchase
+                    </SortableHeader>
+                ),
+                cell: ({ row }) => (
+                    <div className="text-right font-mono text-sm">
+                        {formatCurrency(row.getValue("last_purchase_price"))}
                     </div>
                 ),
             },
@@ -760,7 +776,7 @@ export default function InventoryList() {
                                 </SheetHeader>
                                 <Separator />
                                 <div className="p-6">
-                                    <InventoryItemForm
+                                    <AddItemForm
                                         onSuccess={handleAddSheetClose}
                                         onClose={handleAddSheetClose}
                                     />
@@ -934,7 +950,7 @@ export default function InventoryList() {
                         <Separator />
                         <div className="p-6">
                             {editingItemId && (
-                                <InventoryItemForm
+                                <EditItemForm
                                     itemId={editingItemId}
                                     onSuccess={() => {
                                         setIsEditSheetOpen(false);

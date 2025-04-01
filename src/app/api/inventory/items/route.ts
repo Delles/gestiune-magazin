@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inventoryItemCreateSchema } from "@/lib/validation/inventory-schemas";
+import {
+    inventoryItemCreateSchema,
+    TransactionType,
+} from "@/lib/validation/inventory-schemas";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
+import { Database } from "@/types/supabase";
 
 // Helper for structured error response
 const createErrorResponse = (
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
         const validationResult = inventoryItemCreateSchema.safeParse(body);
         if (!validationResult.success) {
             console.log(
-                "API Validation Error:",
+                "API Validation Error (Create Item):",
                 validationResult.error.flatten()
             );
             return createErrorResponse(
@@ -105,15 +109,13 @@ export async function POST(request: NextRequest) {
             description,
             categoryId,
             unit,
-            purchasePrice,
-            sellingPrice,
+            sellingPrice, // Use initial selling price from form
             initialStock,
+            initialPurchasePrice, // Use new field
             reorder_point,
         } = validationResult.data;
 
-        // --- Start Backend Validations ---
-
-        // 1. Check for duplicate item name (case-insensitive)
+        // --- Backend Validations (Duplicate Name, Category Check) ---
         const { data: existingItem, error: duplicateCheckError } =
             await supabase
                 .from("InventoryItems")
@@ -132,9 +134,10 @@ export async function POST(request: NextRequest) {
             );
         }
         if (existingItem) {
-            return createErrorResponse("Conflict", 409, {
-                itemName: "An item with this name already exists.",
-            });
+            return createErrorResponse(
+                "Conflict: Item name already exists",
+                409
+            );
         }
 
         // 2. Validate categoryId if provided
@@ -157,76 +160,169 @@ export async function POST(request: NextRequest) {
                 );
             }
             if (!categoryExists) {
-                return createErrorResponse("Category not found", 404, {
-                    categoryId: `Category with ID ${categoryId} not found.`,
-                });
+                return createErrorResponse("Category not found", 404);
             }
         }
-
         // --- End Backend Validations ---
 
-        // Insert the new item with fields that match the DB schema
-        const { data: newItemData, error: insertError } = await supabase
+        // --- Item Insertion ---
+        let finalItemData: Database["public"]["Tables"]["InventoryItems"]["Row"]; // Type for the resulting item data
+
+        // 1. Insert the base item details, setting stock to 0 initially.
+        //    Set avg/last price ONLY if initial stock is being added immediately after.
+        const { data: insertedItem, error: insertError } = await supabase
             .from("InventoryItems")
             .insert({
                 item_name: itemName,
                 description: description,
-                category_id: categoryId, // Will be null if not provided
+                category_id: categoryId,
                 unit,
-                purchase_price: purchasePrice,
-                selling_price: sellingPrice,
-                stock_quantity: initialStock,
-                reorder_point: reorder_point, // Add reorder_point field
-                user_id: user.id, // Associate with the user
+                selling_price: sellingPrice, // Set initial selling price
+                stock_quantity: 0, // Start with 0, RPC will update if needed
+                reorder_point: reorder_point,
+                user_id: user.id,
+                // These fields are required by the database schema
+                initial_purchase_price: initialPurchasePrice || 0,
+                // Set initial derived prices only if stock is > 0
+                last_purchase_price:
+                    initialStock > 0 && initialPurchasePrice !== null
+                        ? initialPurchasePrice
+                        : null,
+                average_purchase_price:
+                    initialStock > 0 && initialPurchasePrice !== null
+                        ? initialPurchasePrice
+                        : null,
             })
             .select() // Select the newly inserted row
-            .single(); // Expect only one row back
+            .single(); // Expect only one row
 
         if (insertError) {
-            console.error("API Error: Failed to insert item:", insertError);
-            // Handle potential DB constraint errors more specifically if needed
-            if (insertError.code === "23505") {
-                // Unique constraint violation (fallback)
-                return createErrorResponse("Conflict", 409, {
-                    itemName: "Item name already exists (database constraint).",
-                });
-            }
-            if (insertError.code === "23503") {
-                // Foreign key violation (fallback)
+            console.error(
+                "API Error: Failed to insert base item:",
+                insertError
+            );
+            if (insertError.code === "23505")
                 return createErrorResponse(
-                    "Category not found (database constraint)",
-                    404,
-                    { categoryId: "Invalid category reference." }
+                    "Conflict: Item name exists (DB)",
+                    409
                 );
-            }
-            return createErrorResponse("Failed to create inventory item", 500);
+            if (insertError.code === "23503")
+                return createErrorResponse("Category not found (DB)", 404);
+            throw insertError; // Let general handler catch other DB errors
         }
-
-        if (!newItemData) {
-            // Should not happen if insertError is null, but good to check
-            console.error("API Error: Insert succeeded but no data returned.");
+        if (!insertedItem) {
+            // Should not happen if insertError is null
             return createErrorResponse(
-                "Failed to retrieve created item data",
+                "Failed to retrieve created item data after insert",
                 500
             );
         }
 
-        // --- Audit Logging ---
+        finalItemData = insertedItem; // Store the initially inserted data
+
+        // 2. If initial stock exists, call the RPC function to update stock and log transaction
+        if (
+            initialStock > 0 &&
+            initialPurchasePrice !== null &&
+            initialPurchasePrice !== undefined
+        ) {
+            const { error: rpcError } = await supabase.rpc(
+                "record_item_purchase",
+                {
+                    p_item_id: insertedItem.id,
+                    p_quantity_added: initialStock,
+                    p_purchase_price: initialPurchasePrice,
+                    p_user_id: user.id,
+                    p_transaction_type: "initial-stock" as TransactionType,
+                    p_reference_number: "", // Empty string instead of null
+                    p_reason: "Initial stock addition",
+                    p_transaction_date: new Date().toISOString(), // Use current time
+                }
+            ); // Don't select single here, function returns SETOF
+
+            if (rpcError) {
+                console.error(
+                    "API Error: Failed to record initial stock via RPC:",
+                    rpcError
+                );
+                // Consider cleanup or manual correction if RPC fails after insert
+                return createErrorResponse(
+                    "Failed to record initial stock",
+                    500,
+                    rpcError.message
+                );
+            }
+
+            // If RPC succeeded, fetch the latest item state to return
+            const { data: latestItemData, error: fetchLatestError } =
+                await supabase
+                    .from("InventoryItems")
+                    .select(`*, categories (id, name)`) // Fetch with category again if needed
+                    .eq("id", insertedItem.id)
+                    .single();
+
+            if (fetchLatestError || !latestItemData) {
+                console.error(
+                    "API Warning: Could not fetch latest item data after RPC success:",
+                    fetchLatestError
+                );
+                // Return the initially inserted data as fallback
+            } else {
+                // Update finalItemData with the latest data
+                finalItemData = latestItemData;
+            }
+        }
+
+        // Prepare the response item with category_name
+        const responseItem = {
+            ...finalItemData,
+            // Add category_name based on the available data
+            category_name: "Uncategorized", // Default value
+        };
+
+        // Try to get category name from categories relation if it exists
+        if (
+            "categories" in finalItemData &&
+            finalItemData.categories &&
+            typeof finalItemData.categories === "object" &&
+            finalItemData.categories !== null &&
+            "name" in finalItemData.categories &&
+            typeof finalItemData.categories.name === "string"
+        ) {
+            responseItem.category_name = finalItemData.categories.name;
+        } else if (categoryId) {
+            // If no categories relation but we have categoryId, fetch it
+            const { data: category } = await supabase
+                .from("categories")
+                .select("name")
+                .eq("id", categoryId)
+                .single();
+            if (category && category.name) {
+                responseItem.category_name = category.name;
+            }
+        }
+
+        // Remove the categories property if it exists
+        if ("categories" in responseItem) {
+            delete responseItem.categories;
+        }
+
+        // --- Audit Logging (Optional) ---
         try {
             await supabase.from("AuditLogs").insert({
                 user_id: user.id,
                 action: "CREATE_ITEM",
                 entity: "InventoryItems",
-                entity_id: newItemData.id.toString(), // Convert potential UUID to string
+                entity_id: finalItemData.id.toString(), // Convert potential UUID to string
                 details: {
                     // Store relevant creation data
                     itemName,
                     description,
                     categoryId,
                     unit,
-                    purchasePrice,
                     sellingPrice,
                     initialStock,
+                    initialPurchasePrice,
                     reorder_point, // Add reorder_point to audit log
                 },
             });
@@ -243,7 +339,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 message: "Item created successfully",
-                item: newItemData, // Return the full created item
+                item: responseItem, // Return the final item data
             },
             { status: 201 }
         );
@@ -252,11 +348,19 @@ export async function POST(request: NextRequest) {
             "API Error: Unexpected error in POST /api/inventory/items:",
             error
         );
-        return createErrorResponse(
+        const message =
             error instanceof Error
                 ? error.message
-                : "An unexpected server error occurred",
-            500
-        );
+                : "An unexpected server error occurred";
+        // Avoid sending detailed DB error messages in production for security
+        const displayMessage =
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            typeof error.code === "string" &&
+            error.code.startsWith("23")
+                ? "Database constraint violation."
+                : message;
+        return createErrorResponse(displayMessage, 500);
     }
 }

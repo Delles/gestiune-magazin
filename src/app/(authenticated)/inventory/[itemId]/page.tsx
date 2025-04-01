@@ -23,6 +23,7 @@ import {
     AlertCircle, // Icon for reorder point
     Info, // Icon for description
     Package, // Icon for unit/category
+    Hash, // Icon for average price
 } from "lucide-react";
 import { Metadata } from "next";
 import {
@@ -32,7 +33,6 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import StockAdjustmentForm from "../_components/stock-adjustment";
-import EditFormContainer from "./edit-form-container";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { cn } from "@/lib/utils"; // Import cn utility
 import {
@@ -43,6 +43,7 @@ import {
     SheetDescription,
     SheetTrigger,
 } from "@/components/ui/sheet";
+import EditSheetWrapper from "./edit-sheet-wrapper";
 
 export const metadata: Metadata = {
     title: "Inventory Item Details",
@@ -137,7 +138,7 @@ export default async function InventoryItemPage({
                         </SheetHeader>
                         <Separator />
                         <div className="p-6">
-                            <EditFormContainer itemId={itemId} />
+                            <EditSheetWrapper itemId={itemId} />
                         </div>
                     </SheetContent>
                 </Sheet>
@@ -244,20 +245,40 @@ export default async function InventoryItemPage({
                             </CardContent>
                         </Card>
 
-                        {/* Purchase Price Card */}
+                        {/* Last Purchase Price Card */}
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">
-                                    Purchase Price
+                                    Last Purchase Price
                                 </CardTitle>
                                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">
-                                    {formatCurrency(item.purchase_price)}
+                                    {formatCurrency(item.last_purchase_price)}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Cost per unit
+                                    Most recent cost per unit recorded
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        {/* Average Purchase Price Card */}
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">
+                                    Average Purchase Price
+                                </CardTitle>
+                                <Hash className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">
+                                    {formatCurrency(
+                                        item.average_purchase_price
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Weighted average cost based on purchases
                                 </p>
                             </CardContent>
                         </Card>

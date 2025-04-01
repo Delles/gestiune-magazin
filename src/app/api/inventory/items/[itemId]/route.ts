@@ -100,7 +100,6 @@ export async function PUT(request: NextRequest, context: RouteParams) {
         const {
             itemName,
             categoryId,
-            purchasePrice,
             sellingPrice,
             reorder_point,
             description,
@@ -129,7 +128,6 @@ export async function PUT(request: NextRequest, context: RouteParams) {
             .update({
                 item_name: itemName,
                 category_id: categoryId,
-                purchase_price: purchasePrice,
                 selling_price: sellingPrice,
                 reorder_point: reorder_point,
                 description: description,

@@ -86,12 +86,14 @@ export type Database = {
       }
       InventoryItems: {
         Row: {
+          average_purchase_price: number | null
           category_id: string | null
           created_at: string
           description: string | null
           id: string
+          initial_purchase_price: number
           item_name: string
-          purchase_price: number
+          last_purchase_price: number | null
           reorder_point: number | null
           selling_price: number
           stock_quantity: number
@@ -100,12 +102,14 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          average_purchase_price?: number | null
           category_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          initial_purchase_price: number
           item_name: string
-          purchase_price: number
+          last_purchase_price?: number | null
           reorder_point?: number | null
           selling_price: number
           stock_quantity?: number
@@ -114,12 +118,14 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          average_purchase_price?: number | null
           category_id?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          initial_purchase_price?: number
           item_name?: string
-          purchase_price?: number
+          last_purchase_price?: number | null
           reorder_point?: number | null
           selling_price?: number
           stock_quantity?: number
@@ -173,7 +179,7 @@ export type Database = {
           reference_number: string | null
           selling_price: number | null
           total_price: number | null
-          transaction_type: string
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
           user_id: string | null
         }
         Insert: {
@@ -187,7 +193,7 @@ export type Database = {
           reference_number?: string | null
           selling_price?: number | null
           total_price?: number | null
-          transaction_type: string
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
           user_id?: string | null
         }
         Update: {
@@ -201,7 +207,7 @@ export type Database = {
           reference_number?: string | null
           selling_price?: number | null
           total_price?: number | null
-          transaction_type?: string
+          transaction_type?: Database["public"]["Enums"]["transaction_type"]
           user_id?: string | null
         }
         Relationships: [
@@ -252,10 +258,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_item_purchase: {
+        Args: {
+          p_item_id: string
+          p_quantity_added: number
+          p_purchase_price: number
+          p_user_id: string
+          p_transaction_type: Database["public"]["Enums"]["transaction_type"]
+          p_reference_number?: string
+          p_reason?: string
+          p_transaction_date?: string
+        }
+        Returns: {
+          average_purchase_price: number | null
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          initial_purchase_price: number
+          item_name: string
+          last_purchase_price: number | null
+          reorder_point: number | null
+          selling_price: number
+          stock_quantity: number
+          unit: string
+          updated_at: string
+          user_id: string | null
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      transaction_type:
+        | "purchase"
+        | "return"
+        | "inventory-correction-add"
+        | "other-addition"
+        | "sale"
+        | "damaged"
+        | "loss"
+        | "expired"
+        | "inventory-correction-remove"
+        | "other-removal"
+        | "initial-stock"
     }
     CompositeTypes: {
       [_ in never]: never
