@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import StockAdjustmentForm from "../_components/stock-adjustment";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
-import { cn } from "@/lib/utils"; // Import cn utility
+import { cn, formatCurrency } from "@/lib/utils"; // Import cn and formatCurrency utility
 import {
     Sheet,
     SheetContent,
@@ -78,15 +78,6 @@ export default async function InventoryItemPage({
         console.error("Error fetching inventory item:", error);
         notFound();
     }
-
-    // Format the monetary values
-    const formatCurrency = (value: number | null | undefined) => {
-        if (value === null || value === undefined) return "N/A";
-        return new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD", // Replace with dynamic currency later from settings
-        }).format(value);
-    };
 
     const isLowStock =
         item.reorder_point !== null &&

@@ -1,7 +1,7 @@
 // src/lib/validation/inventory-schemas.ts
 import { z } from "zod";
 
-// Define the transaction types including 'initial-stock'
+// Define ALL transaction types (including initial-stock for logging etc.)
 export const transactionTypeEnum = z.enum([
     "purchase",
     "return",
@@ -13,9 +13,26 @@ export const transactionTypeEnum = z.enum([
     "expired",
     "inventory-correction-remove",
     "other-removal",
-    "initial-stock", // Ensure this is included
+    "initial-stock", // Kept here for a complete list if needed elsewhere
 ]);
 export type TransactionType = z.infer<typeof transactionTypeEnum>;
+
+// Define transaction types VALID for stock adjustments (excludes initial-stock)
+export const stockAdjustmentTransactionTypeEnum = z.enum([
+    "purchase",
+    "return",
+    "inventory-correction-add",
+    "other-addition",
+    "sale",
+    "damaged",
+    "loss",
+    "expired",
+    "inventory-correction-remove",
+    "other-removal",
+]);
+export type StockAdjustmentTransactionType = z.infer<
+    typeof stockAdjustmentTransactionTypeEnum
+>;
 
 // Base schema for properties editable via the Edit Item form
 const baseItemEditableSchema = z.object({
@@ -115,7 +132,7 @@ export const inventoryItemUpdateSchema = baseItemEditableSchema.extend({
 // Schema for stock adjustment form (used by StockAdjustmentForm component)
 export const stockAdjustmentSchema = z.object({
     type: z.enum(["increase", "decrease"]), // Internal UI state, might not be sent directly if using RPC for purchases
-    transactionType: transactionTypeEnum,
+    transactionType: stockAdjustmentTransactionTypeEnum, // Use the specific enum for adjustments
     quantity: z
         .number()
         .min(0.01, "Quantity must be greater than zero")

@@ -17,10 +17,11 @@ import {
     AlertCircle,
     ArrowUp,
     ArrowDown,
+    Loader2,
 } from "lucide-react";
 import {
     stockAdjustmentSchema,
-    type TransactionType,
+    type StockAdjustmentTransactionType,
     type StockAdjustmentFormValues,
 } from "@/lib/validation/inventory-schemas";
 import { adjustInventoryItemStock } from "@/services/inventoryService";
@@ -62,8 +63,17 @@ interface TransactionTypeConfig {
     requiresPrice: boolean;
 }
 
+// --- Define API response type used in mutation --- (Or import if defined elsewhere)
+interface StockAdjustmentApiResponse {
+    message: string;
+    // Add other expected fields from the API response
+}
+
 // Transaction Type Configurations
-const TRANSACTION_TYPES: Record<TransactionType, TransactionTypeConfig> = {
+const TRANSACTION_TYPES: Record<
+    StockAdjustmentTransactionType,
+    TransactionTypeConfig
+> = {
     // Increase types
     purchase: {
         label: "Purchase",
@@ -126,7 +136,7 @@ const TRANSACTION_TYPES: Record<TransactionType, TransactionTypeConfig> = {
         description: "Other stock decrease reasons",
         requiresPrice: false,
     },
-};
+} as const;
 
 // Main Component
 export default function StockAdjustmentForm({
@@ -183,7 +193,7 @@ export default function StockAdjustmentForm({
                           "other-addition",
                       ].includes(key)
                   )
-                  .map(([key]) => key as TransactionType)
+                  .map(([key]) => key as StockAdjustmentTransactionType)
             : Object.entries(TRANSACTION_TYPES)
                   .filter(([key]) =>
                       [
@@ -195,7 +205,7 @@ export default function StockAdjustmentForm({
                           "other-removal",
                       ].includes(key)
                   )
-                  .map(([key]) => key as TransactionType);
+                  .map(([key]) => key as StockAdjustmentTransactionType);
     }, [isIncreaseType]);
 
     const showPriceFields = useMemo(() => {
@@ -365,68 +375,83 @@ export default function StockAdjustmentForm({
         setServerError(null); // Clear errors on type change
     };
 
-    // --- RHF Submit Handler ---
-    const onSubmit = (values: StockAdjustmentFormValues) => {
-        setServerError(null);
-        if (values.type === "decrease" && values.quantity > currentStock) {
-            form.setError("quantity", {
-                type: "manual",
-                message: `Cannot decrease more than current stock (${currentStock} ${unit})`,
-            });
-            return;
-        }
-
-        // Format data before sending
-        const dataToSend = {
-            ...values,
-            quantity: Number(values.quantity || 0), // Ensure quantity is a number
-            purchasePrice: values.purchasePrice
-                ? Number(values.purchasePrice)
-                : null,
-            sellingPrice: values.sellingPrice
-                ? Number(values.sellingPrice)
-                : null,
-            totalPrice: values.totalPrice ? Number(values.totalPrice) : null,
-            date: values.date ?? new Date(), // Ensure date is set
-        };
-        mutation.mutate(dataToSend);
-    };
-    // --- End RHF Submit Handler ---
-
-    const mutation = useMutation({
-        mutationFn: (values: StockAdjustmentFormValues) =>
-            adjustInventoryItemStock(itemId, values),
+    // Explicitly type the mutation
+    const mutation = useMutation<
+        StockAdjustmentApiResponse, // Type of data returned by mutationFn
+        Error, // Type of error
+        StockAdjustmentFormValues // Type of variables passed to mutate
+    >({
+        // Correctly wrap the mutation function
+        // It receives the form values (TVariables) from mutate()
+        mutationFn: async (values: StockAdjustmentFormValues) => {
+            // Call the service function with itemId from props and the form values
+            return adjustInventoryItemStock(itemId, values);
+        },
+        onMutate: async () => {
+            setServerError(null);
+            setShowSuccess(false);
+            // Optional: Optimistic update (complex, consider if needed)
+            // await queryClient.cancelQueries({ queryKey: ['inventoryItems', itemId] })
+            // const previousItem = queryClient.getQueryData(['inventoryItems', itemId])
+            // queryClient.setQueryData(['inventoryItems', itemId], old => ...)
+            // return { previousItem }
+        },
         onSuccess: (data) => {
-            // Invalidate relevant queries to refresh data
-            queryClient.invalidateQueries({
-                queryKey: ["stockTransactions", itemId],
-            });
-            queryClient.invalidateQueries({
-                queryKey: ["inventoryItem", itemId],
-            });
             queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
             queryClient.invalidateQueries({ queryKey: ["inventoryStats"] });
+            // Invalidate specific item details if needed
+            queryClient.invalidateQueries({
+                queryKey: ["inventoryItems", itemId],
+            });
+            toast.success(data.message || "Stock adjusted successfully!");
+            setShowSuccess(true); // Show success message
 
-            setShowSuccess(true);
-            form.reset(); // Reset form on success
-            toast.success(data.message || "Stock adjusted successfully!"); // Use API message
-            setTimeout(() => {
-                setShowSuccess(false);
-                onSuccess?.();
-            }, 1500); // Slightly faster close
+            // Trigger external success handler if provided (e.g., close dialog)
+            onSuccess?.();
+
+            // Optionally close the dialog after a short delay
+            // setTimeout(() => {
+            //     onClose?.();
+            // }, 1500);
         },
-        onError: (error) => {
-            const errorMsg =
+        onError: (error /*, variables, context*/) => {
+            // Optional: Rollback optimistic update
+            // if (context?.previousItem) {
+            //   queryClient.setQueryData(['inventoryItems', itemId], context.previousItem)
+            // }
+            const errorMessage =
                 error instanceof Error
                     ? error.message
                     : "An unexpected error occurred";
-            setServerError(errorMsg);
-            toast.error(`Error: ${errorMsg}`);
+            setServerError(errorMessage);
+            toast.error(`Error: ${errorMessage}`);
+            setShowSuccess(false); // Hide success message on error
         },
     });
 
+    // --- RHF Submit Handler ---
+    const onSubmit = (values: StockAdjustmentFormValues) => {
+        // Convert date to ISO string if needed by backend, otherwise keep as Date
+        // const dateToSend = values.date instanceof Date ? values.date.toISOString() : values.date;
+        // console.log("Submitting values:", { ...values, itemId });
+
+        // Ensure price fields are null if not required for the transaction type
+        const isPriceRequired =
+            TRANSACTION_TYPES[values.transactionType].requiresPrice;
+        const dataToSend = {
+            ...values,
+            purchasePrice: isPriceRequired ? values.purchasePrice : null,
+            sellingPrice: isPriceRequired ? values.sellingPrice : null,
+            totalPrice: isPriceRequired ? values.totalPrice : null,
+        };
+
+        mutation.mutate(dataToSend); // Pass only the processed form values
+    };
+    // --- End RHF Submit Handler ---
+
     return (
         <TooltipProvider>
+            {/* RHF Form Provider */}
             <Form {...form}>
                 <form
                     onSubmit={form.handleSubmit(onSubmit)}
@@ -456,6 +481,7 @@ export default function StockAdjustmentForm({
                         onTypeChange={handleTypeChange}
                     />
 
+                    {/* Dynamic fields based on type and transaction */}
                     <StockAdjustmentFields
                         form={form}
                         unit={unit}

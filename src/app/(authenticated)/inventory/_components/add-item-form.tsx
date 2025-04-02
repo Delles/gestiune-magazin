@@ -428,30 +428,21 @@ export default function AddItemForm({ onSuccess, onClose }: AddItemFormProps) {
                     )}
                 />
 
-                {/* Form Actions */}
-                <div className="flex justify-end gap-2 pt-4">
-                    {onClose && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={onClose}
-                            disabled={mutation.isPending}
-                        >
-                            Cancel
-                        </Button>
-                    )}
+                {/* Footer Actions */}
+                <div className="flex justify-end space-x-3 pt-4">
                     <Button
-                        type="submit"
-                        disabled={mutation.isPending || isLoadingCategories}
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                        disabled={mutation.isPending}
                     >
+                        Cancel
+                    </Button>
+                    <Button type="submit" disabled={mutation.isPending}>
                         {mutation.isPending ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                                Adding...
-                            </>
-                        ) : (
-                            "Add Item"
-                        )}
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        {mutation.isPending ? "Adding Item..." : "Add Item"}
                     </Button>
                 </div>
             </form>

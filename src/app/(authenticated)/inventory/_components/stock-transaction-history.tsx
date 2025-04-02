@@ -18,7 +18,11 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { format } from "date-fns";
+import {
+    formatDate,
+    formatCurrency,
+    DEFAULT_DATETIME_FORMAT,
+} from "@/lib/utils";
 import {
     ArrowUpDown,
     Search,
@@ -268,11 +272,6 @@ export default function StockTransactionHistory({
                             </span>
                         );
 
-                    const formatCurrency = (value: number) =>
-                        new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: "USD",
-                        }).format(value);
                     return (
                         <div className="text-sm font-mono">
                             {formatCurrency(price)}
@@ -291,11 +290,6 @@ export default function StockTransactionHistory({
                                 —
                             </span>
                         );
-                    const formatCurrency = (value: number) =>
-                        new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: "USD",
-                        }).format(value);
                     return (
                         <div className="text-sm font-mono font-medium">
                             {formatCurrency(totalPrice)}
@@ -351,9 +345,8 @@ export default function StockTransactionHistory({
                     const date = new Date(row.getValue("created_at") as string);
                     return (
                         <div className="text-sm">
-                            <div>{format(date, "MMM d, yyyy")}</div>
-                            <div className="text-xs text-muted-foreground">
-                                {format(date, "h:mm a")}
+                            <div>
+                                {formatDate(date, DEFAULT_DATETIME_FORMAT)}
                             </div>
                         </div>
                     );

@@ -25,8 +25,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { cn, formatDate } from "@/lib/utils";
 import {
     CalendarIcon,
     DollarSign,
@@ -39,7 +38,7 @@ import {
 } from "lucide-react";
 import {
     type StockAdjustmentFormValues,
-    type TransactionType,
+    type StockAdjustmentTransactionType,
 } from "@/lib/validation/inventory-schemas"; // Adjust import if needed
 import {
     Tooltip,
@@ -48,9 +47,9 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Assuming TRANSACTION_TYPES structure - define a type for it
+// Update the config type to use the specific adjustment transaction type
 type TransactionTypeConfig = {
-    [key in TransactionType]: {
+    [key in StockAdjustmentTransactionType]: {
         label: string;
         description: string;
         icon: React.ReactNode;
@@ -63,12 +62,12 @@ interface StockAdjustmentFieldsProps {
     currentStock: number;
     isIncreaseType: boolean;
     showPriceFields: boolean;
-    relevantTransactionTypes: TransactionType[];
+    relevantTransactionTypes: StockAdjustmentTransactionType[]; // Use specific type
     handleTotalPriceChange: (value: string | number) => void;
     handleQuantityChange: (value: string | number | undefined) => void;
     handleUnitPriceChange: (value: string | number) => void;
     form: UseFormReturn<StockAdjustmentFormValues>;
-    transactionTypesConfig: TransactionTypeConfig;
+    transactionTypesConfig: TransactionTypeConfig; // Uses the updated local type
 }
 
 export function StockAdjustmentFields({
@@ -204,7 +203,7 @@ export function StockAdjustmentFields({
                                                 )}
                                             >
                                                 {field.value ? (
-                                                    format(field.value, "PPP")
+                                                    formatDate(field.value)
                                                 ) : (
                                                     <span>Pick a date</span>
                                                 )}
@@ -217,7 +216,11 @@ export function StockAdjustmentFields({
                                     >
                                         <Calendar
                                             mode="single"
-                                            selected={field.value}
+                                            selected={
+                                                field.value
+                                                    ? new Date(field.value)
+                                                    : undefined
+                                            }
                                             onSelect={(date) =>
                                                 field.onChange(
                                                     date ?? new Date()
