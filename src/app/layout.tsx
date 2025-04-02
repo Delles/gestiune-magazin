@@ -33,14 +33,14 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
             >
                 <Providers>
-                    <div className="relative flex min-h-screen flex-col">
-                        <Header /> {/* Add Header here */}
-                        <main className="flex-1 container py-6">
-                            {" "}
-                            {/* Add main content wrapper */}
+                    <div className="min-h-screen flex flex-col">
+                        {/* Header - with green rectangle margins */}
+                        <Header />
+
+                        {/* Main content - with additional margins (green + red rectangles) */}
+                        <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                             {children}
                         </main>
-                        {/* Add Footer Here Later if needed */}
                     </div>
                     <Toaster />
                 </Providers>
