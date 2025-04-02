@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowUpDown, Package } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import { InventoryItem } from "../types/types";
+import { InventoryItem } from "../../types/types";
 
 // --- Helper Components ---
 export const SortableHeader = ({

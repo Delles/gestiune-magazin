@@ -37,68 +37,17 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-
-type Category = { id: string; name: string };
-// Assuming InventoryItem type includes the new price fields if needed for display defaults
-type InventoryItem = {
-    id: string;
-    item_name: string;
-    category_id: string | null;
-    category_name?: string; // Added by API join potentially
-    unit: string;
-    initial_purchase_price: number; // Renamed from purchase_price
-    selling_price: number;
-    stock_quantity: number;
-    reorder_point: number | null;
-    description: string | null;
-    created_at: string;
-    updated_at: string;
-    last_purchase_price: number | null; // NEW
-    average_purchase_price: number | null; // NEW
-};
+import type { Category, InventoryItem } from "../../types/types"; // Import types
+import {
+    getCategories,
+    getInventoryItem,
+    updateInventoryItem,
+} from "../../_data/api"; // Import API functions
 
 interface EditItemFormProps {
     itemId: string;
     onSuccess?: () => void;
     onClose?: () => void;
-}
-
-// Function to fetch categories
-async function getCategories(): Promise<Category[]> {
-    /* ... same as in AddItemForm ... */
-    const response = await fetch("/api/categories");
-    if (!response.ok) throw new Error("Failed to fetch categories");
-    return response.json();
-}
-
-// Function to fetch an inventory item by ID
-async function getInventoryItem(id: string): Promise<InventoryItem> {
-    // Specify return type
-    const response = await fetch(`/api/inventory/items/${id}`);
-    if (!response.ok) {
-        if (response.status === 404) throw new Error("Item not found");
-        throw new Error("Failed to fetch inventory item");
-    }
-    return response.json();
-}
-
-// Function to update an existing inventory item
-async function updateInventoryItem(
-    id: string,
-    data: Omit<InventoryItemUpdateFormValues, "id">
-) {
-    const response = await fetch(`/api/inventory/items/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-            errorData.message || errorData.error || "Failed to update item"
-        );
-    }
-    return response.json();
 }
 
 export default function EditItemForm({
@@ -111,10 +60,10 @@ export default function EditItemForm({
 
     // Fetch categories
     const { data: categories = [], isLoading: isLoadingCategories } = useQuery<
-        Category[]
+        Category[] // Ensure this uses the imported Category
     >({
         queryKey: ["categories"],
-        queryFn: getCategories,
+        queryFn: getCategories, // Use imported function
     });
 
     // Fetch item data for editing
@@ -124,7 +73,7 @@ export default function EditItemForm({
         error: itemError,
     } = useQuery<InventoryItem>({
         queryKey: ["inventoryItem", itemId],
-        queryFn: () => getInventoryItem(itemId),
+        queryFn: () => getInventoryItem(itemId), // Use imported function
         enabled: !!itemId,
     });
 
@@ -157,7 +106,7 @@ export default function EditItemForm({
 
     const mutation = useMutation({
         mutationFn: (values: InventoryItemUpdateFormValues) =>
-            updateInventoryItem(itemId, values),
+            updateInventoryItem(itemId, values), // Use imported function
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["inventoryItems"] }); // Invalidate list
             queryClient.invalidateQueries({

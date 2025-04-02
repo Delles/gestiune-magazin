@@ -40,19 +40,19 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import StockAdjustmentForm from "./stock-adjustment";
+import StockAdjustmentForm from "../stock-adjustment";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { useDebounce } from "@/hooks/use-debounce"; // Corrected path
 import { toast } from "sonner";
 import InlineEditFormRow from "./inline-edit-form";
 import DisplayRow from "./display-row";
-import { InventoryItem, Category } from "../types/types"; // Keep types
+import { InventoryItem, Category } from "../../types/types"; // Keep types
 // --- Import API Functions ---
 import {
     getInventoryItems,
     getCategories,
     deleteInventoryItems,
-} from "../_lib/api";
+} from "../../_data/api";
 
 // --- Import Child Components ---
 import { columns } from "./inventory-columns";

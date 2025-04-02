@@ -43,8 +43,8 @@ import {
     AlertCircle, // For stock status filter icon
     // XCircle is already imported
 } from "lucide-react";
-import { InventoryItem, Category } from "../types/types";
-import AddItemForm from "./add-item-form";
+import { InventoryItem, Category } from "../../types/types";
+import AddItemForm from "../forms/add-item-form";
 import { SortableHeader } from "./inventory-columns"; // Import SortableHeader
 
 // --- Stock Status Options (Moved from columns, as filter UI is here) ---

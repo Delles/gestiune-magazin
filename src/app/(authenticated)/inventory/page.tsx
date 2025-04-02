@@ -1,6 +1,6 @@
 // src/app/(authenticated)/inventory/page.tsx
 import { Metadata } from "next";
-import InventoryList from "./_components/inventory-list";
+import InventoryList from "./_components/list/inventory-list";
 import { createServerClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import EditItemForm from "../_components/edit-item-form";
+import EditItemForm from "../../_components/forms/edit-item-form";
 
 interface EditSheetWrapperProps {
     itemId: string;

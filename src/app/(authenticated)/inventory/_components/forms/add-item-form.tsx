@@ -37,35 +37,12 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-
-type Category = { id: string; name: string };
+import type { Category } from "../../types/types"; // Import type
+import { getCategories, createInventoryItem } from "../../_data/api"; // Import API functions
 
 interface AddItemFormProps {
     onSuccess?: () => void;
     onClose?: () => void;
-}
-
-// Function to fetch categories (same as before)
-async function getCategories(): Promise<Category[]> {
-    const response = await fetch("/api/categories");
-    if (!response.ok) throw new Error("Failed to fetch categories");
-    return response.json();
-}
-
-// Function to create a new inventory item
-async function createInventoryItem(data: InventoryItemCreateFormValues) {
-    const response = await fetch("/api/inventory/items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-            errorData.message || errorData.error || "Failed to create item"
-        );
-    }
-    return response.json();
 }
 
 export default function AddItemForm({ onSuccess, onClose }: AddItemFormProps) {

@@ -30,26 +30,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, X, DollarSign, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
-
-// --- Types (ensure alignment with InventoryList or import from shared types) ---
-type Category = { id: string; name: string };
-type InventoryItem = {
-    id: string;
-    item_name: string;
-    category_id: string | null;
-    category_name?: string;
-    unit: string;
-    initial_purchase_price: number;
-    selling_price: number;
-    stock_quantity: number;
-    reorder_point: number | null;
-    description: string | null;
-    created_at: string;
-    updated_at: string;
-    last_purchase_price: number | null;
-    average_purchase_price: number | null;
-};
-
+import type { Category, InventoryItem } from "../../types/types"; // Import types
+import { updateInventoryItem } from "../../_data/api";
 // --- Props Interface ---
 interface InlineEditFormRowProps {
     item: InventoryItem;
@@ -58,25 +40,6 @@ interface InlineEditFormRowProps {
     onCancel: () => void;
     density: "compact" | "normal" | "comfortable";
     visibleColumns: string[]; // IDs of currently visible columns
-}
-
-// --- API Function ---
-async function updateInventoryItem(
-    id: string,
-    data: Omit<InventoryItemUpdateFormValues, "id">
-) {
-    const response = await fetch(`/api/inventory/items/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); // Graceful error parsing
-        throw new Error(
-            errorData.message || errorData.error || "Failed to update item"
-        );
-    }
-    return response.json();
 }
 
 // --- Main Component ---

@@ -3,7 +3,7 @@
 import { Table } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { InventoryItem } from "../types/types";
+import { InventoryItem } from "../../types/types";
 
 interface InventoryTablePaginationProps {
     table: Table<InventoryItem>;

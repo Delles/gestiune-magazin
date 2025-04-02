@@ -14,26 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Pencil, BarChart4, Eye } from "lucide-react"; // Necessary icons
 import { cn } from "@/lib/utils";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-
-// --- Type Definition (Import or define consistently) ---
-// Assuming InventoryItem is defined elsewhere and imported or defined here
-// Consider moving this to a shared types file (e.g., src/types/inventory.ts)
-type InventoryItem = {
-    id: string;
-    item_name: string;
-    category_id: string | null;
-    category_name?: string;
-    unit: string;
-    initial_purchase_price: number;
-    selling_price: number;
-    stock_quantity: number;
-    reorder_point: number | null;
-    description: string | null;
-    created_at: string;
-    updated_at: string;
-    last_purchase_price: number | null;
-    average_purchase_price: number | null;
-};
+import type { InventoryItem } from "../../types/types"; // Import type
 
 // --- Helper Component (ActionTooltipButton - Copied here or import from shared) ---
 // Consider moving this to a shared components utility file
@@ -123,29 +104,14 @@ const DisplayRow = React.memo(
                             {cell.column.id === "actions" ? (
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                     <TooltipProvider delayDuration={100}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEditClick(
-                                                            item.id
-                                                        );
-                                                    }}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                    <span className="sr-only">
-                                                        Edit Item
-                                                    </span>
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                                <p>Edit Item</p>
-                                            </TooltipContent>
-                                        </Tooltip>
+                                        <ActionTooltipButton
+                                            tooltip="Edit Item"
+                                            icon={Pencil}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditClick(item.id);
+                                            }}
+                                        />
                                         <ActionTooltipButton
                                             tooltip="Adjust Stock"
                                             icon={BarChart4}

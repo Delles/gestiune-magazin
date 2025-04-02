@@ -21,4 +21,20 @@ type Category = {
     name: string;
 };
 
-export type { InventoryItem, Category };
+type StockTransaction = {
+    id: string;
+    item_id: string;
+    transaction_type: string;
+    quantity_change: number;
+    reason: string | null;
+    created_at: string;
+    user_id: string | null;
+    notes: string | null;
+    user_name?: string; // Typically joined from a users table
+    purchase_price: number | null;
+    selling_price: number | null;
+    total_price: number | null;
+    reference_number: string | null;
+};
+
+export type { InventoryItem, Category, StockTransaction };

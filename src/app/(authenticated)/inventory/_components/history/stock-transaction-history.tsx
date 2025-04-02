@@ -74,34 +74,8 @@ import {
     type ColumnFiltersState,
 } from "@tanstack/react-table";
 import { useDebounce } from "@/hooks/use-debounce"; // Import debounce hook
-
-// Type for stock transaction (assuming it's the same)
-type StockTransaction = {
-    id: string;
-    item_id: string;
-    transaction_type: string;
-    quantity_change: number;
-    reason: string | null;
-    created_at: string;
-    user_id: string | null;
-    notes: string | null;
-    user_name?: string;
-    purchase_price: number | null;
-    selling_price: number | null;
-    total_price: number | null;
-    reference_number: string | null;
-};
-
-// Function to fetch stock transactions (assuming it's the same)
-async function getStockTransactions(
-    itemId: string
-): Promise<StockTransaction[]> {
-    const response = await fetch(`/api/inventory/items/${itemId}/transactions`);
-    if (!response.ok) {
-        throw new Error("Failed to fetch stock transactions");
-    }
-    return response.json();
-}
+import { StockTransaction } from "../../types/types"; // Import type
+import { getStockTransactions } from "../../_data/api"; // Import API function
 
 // Helper to get friendly names for transaction types
 const getTransactionTypeFriendlyName = (type: string): string => {
@@ -149,7 +123,7 @@ export default function StockTransactionHistory({
         refetch,
     } = useQuery({
         queryKey: ["stockTransactions", itemId],
-        queryFn: () => getStockTransactions(itemId),
+        queryFn: () => getStockTransactions(itemId), // Use imported function
     });
 
     // Define columns for the transaction table

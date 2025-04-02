@@ -1,5 +1,9 @@
 import { toast } from "sonner";
-import { InventoryItem, Category } from "../types/types"; // Uses the existing type path
+import { InventoryItem, Category, StockTransaction } from "../types/types"; // Uses the existing type path
+import type {
+    InventoryItemCreateFormValues,
+    InventoryItemUpdateFormValues,
+} from "@/lib/validation/inventory-schemas";
 
 export async function getInventoryItems(): Promise<InventoryItem[]> {
     const response = await fetch("/api/inventory/items");
@@ -80,4 +84,75 @@ export async function deleteInventoryItems(itemIds: string[]): Promise<void> {
             `Some items failed to delete. Errors: ${errorMessages}`
         );
     }
+}
+
+// Function to fetch an inventory item by ID
+export async function getInventoryItem(id: string): Promise<InventoryItem> {
+    const response = await fetch(`/api/inventory/items/${id}`);
+    if (!response.ok) {
+        if (response.status === 404) throw new Error("Item not found");
+        // Consider more specific error handling based on status codes
+        const errorText = await response.text();
+        throw new Error(
+            `Failed to fetch item ${id}: ${response.status} ${
+                errorText || response.statusText
+            }`
+        );
+    }
+    const data = await response.json();
+    return data as InventoryItem; // Assuming API returns correct shape
+}
+
+// Function to create a new inventory item
+export async function createInventoryItem(data: InventoryItemCreateFormValues) {
+    const response = await fetch("/api/inventory/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})); // Graceful error parsing
+        throw new Error(
+            errorData.message || errorData.error || "Failed to create item"
+        );
+    }
+    return response.json(); // Return the parsed JSON response (e.g., { message: string, item: InventoryItem })
+}
+
+// Function to update an existing inventory item
+export async function updateInventoryItem(
+    id: string,
+    data: Omit<InventoryItemUpdateFormValues, "id">
+) {
+    const response = await fetch(`/api/inventory/items/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})); // Graceful error parsing
+        throw new Error(
+            errorData.message ||
+                errorData.error ||
+                `Failed to update item ${id}`
+        );
+    }
+    return response.json(); // Return the parsed JSON response
+}
+
+// Function to fetch stock transactions for an item
+export async function getStockTransactions(
+    itemId: string
+): Promise<StockTransaction[]> {
+    const response = await fetch(`/api/inventory/items/${itemId}/transactions`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+            `Failed to fetch transactions for item ${itemId}: ${
+                response.status
+            } ${errorText || response.statusText}`
+        );
+    }
+    const data = await response.json();
+    return data as StockTransaction[]; // Assuming API returns correct shape
 }
