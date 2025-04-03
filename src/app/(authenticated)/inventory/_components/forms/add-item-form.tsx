@@ -405,20 +405,25 @@ export default function AddItemForm({ onSuccess, onClose }: AddItemFormProps) {
                     )}
                 />
 
-                {/* Footer Actions */}
-                <div className="flex justify-end space-x-3 pt-4">
+                {/* Form Actions */}
+                <div className="flex justify-end gap-3 pt-4">
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         onClick={onClose}
                         disabled={mutation.isPending}
+                        className="transition-colors duration-150"
                     >
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={mutation.isPending}>
-                        {mutation.isPending ? (
+                    <Button
+                        type="submit"
+                        disabled={mutation.isPending || !form.formState.isValid}
+                        className="transition-colors duration-150"
+                    >
+                        {mutation.isPending && (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
+                        )}
                         {mutation.isPending ? "Adding Item..." : "Add Item"}
                     </Button>
                 </div>

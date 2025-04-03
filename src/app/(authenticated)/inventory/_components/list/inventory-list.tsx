@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip"; // Keep provider for rows
-import { PlusCircle, Package, Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, Inbox } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog,
@@ -52,13 +52,18 @@ import {
     getInventoryItems,
     getCategories,
     deleteInventoryItems,
+    updateItemReorderPoint,
 } from "../../_data/api";
+import { cn } from "@/lib/utils"; // Ensure cn is imported
 
 // --- Import Child Components ---
 import { columns } from "./inventory-columns";
 import { InventoryTableToolbar } from "./inventory-table-toolbar"; // Add import
 import { InventoryBulkActions } from "./inventory-bulk-actions";
 import { InventoryTablePagination } from "./inventory-table-pagination";
+import { format as formatDate, parseISO } from "date-fns"; // Import date-fns functions
+import { ro } from "date-fns/locale"; // Import Romanian locale
+// Import popover content
 
 export default function InventoryList() {
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -77,6 +82,9 @@ export default function InventoryList() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+    const [reorderPointItemId, setReorderPointItemId] = useState<string | null>(
+        null
+    );
 
     const queryClient = useQueryClient();
     const router = useRouter();
@@ -186,6 +194,24 @@ export default function InventoryList() {
             setIsDeleteDialogOpen(false);
         },
     });
+
+    const updateReorderPointMutation = useMutation({
+        mutationFn: (variables: { id: string; reorder_point: number | null }) =>
+            updateItemReorderPoint(variables.id, variables.reorder_point),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
+            queryClient.invalidateQueries({
+                queryKey: ["inventoryItem", variables.id],
+            });
+            setReorderPointItemId(null); // Close popover (by clearing the ID)
+            toast.success("Reorder point updated successfully.");
+        },
+        onError: (error: Error) => {
+            toast.error(`Failed to update reorder point: ${error.message}`);
+            // Close popover even on error for simplicity, or handle differently
+            // setReorderPointItemId(null);
+        },
+    });
     // --- End Mutations ---
 
     // --- Table Instance ---
@@ -288,7 +314,115 @@ export default function InventoryList() {
     const handleSaveEdit = () => {
         setEditingRowId(null);
     };
-    // --- End Handlers ---
+
+    // Define state for modals/dialogs related to the new actions
+    // const [adjustingReorderPointItem, setAdjustingReorderPointItem] =
+    //     useState<InventoryItem | null>(null);
+    const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(
+        null
+    );
+    const [isDeleteSingleItemDialogOpen, setIsDeleteSingleItemDialogOpen] =
+        useState(false);
+
+    const handleSaveReorderPoint = (newPoint: number | null) => {
+        if (reorderPointItemId) {
+            updateReorderPointMutation.mutate({
+                id: reorderPointItemId,
+                reorder_point: newPoint,
+            });
+        } // Popover closing is handled by onSuccess/onOpenChange
+    };
+
+    const handleDeleteItemClick = (item: InventoryItem) => {
+        console.log("Delete Item:", item.id); // Placeholder
+        setDeletingItem(item);
+        setIsDeleteSingleItemDialogOpen(true); // Open single item delete confirmation dialog
+    };
+
+    const confirmSingleItemDelete = () => {
+        if (deletingItem) {
+            deleteMutation.mutate([deletingItem.id]); // Use existing bulk delete mutation
+        }
+        setIsDeleteSingleItemDialogOpen(false);
+        setDeletingItem(null);
+    };
+
+    const handleExportCsv = () => {
+        const rows = table.getFilteredRowModel().rows; // Get filtered/sorted rows
+        if (!rows.length) {
+            toast.info("No data available to export.");
+            return;
+        }
+
+        const formatRoDate = (dateString: string | null): string => {
+            if (!dateString) return "";
+            try {
+                const date = parseISO(dateString);
+                return formatDate(date, "dd.MM.yyyy HH:mm:ss", { locale: ro });
+            } catch (error) {
+                console.error("Error formatting date:", dateString, error);
+                return dateString; // Return original string on error
+            }
+        };
+
+        const headers = [
+            "ID",
+            "Item Name",
+            "Category",
+            "Unit",
+            "Stock Quantity",
+            "Reorder Point",
+            "Selling Price",
+            "Avg. Purchase Price",
+            "Last Purchase Price",
+            "Description",
+            "Created At",
+            "Updated At",
+        ];
+
+        // Use visible columns to potentially influence export?
+        // For simplicity, exporting a standard set for now.
+        const data = rows.map((row) => {
+            const item = row.original;
+            return [
+                item.id,
+                `"${item.item_name.replace(/"/g, '""')}"`, // Escape quotes
+                item.category_name || "Uncategorized",
+                item.unit,
+                item.stock_quantity,
+                item.reorder_point ?? "", // Handle null
+                item.selling_price,
+                item.average_purchase_price ?? "", // Handle null
+                item.last_purchase_price ?? "", // Handle null
+                `"${(item.description || "").replace(/"/g, '""')}"`, // Escape quotes
+                formatRoDate(item.created_at), // Format date
+                formatRoDate(item.updated_at), // Format date
+            ].join(",");
+        });
+
+        const csvContent = [headers.join(","), ...data].join("\n");
+
+        // Create CSV file and trigger download
+        try {
+            const blob = new Blob([csvContent], {
+                type: "text/csv;charset=utf-8;",
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            link.setAttribute("download", `inventory_export_${timestamp}.csv`);
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            toast.success("CSV export started successfully.");
+        } catch (error) {
+            console.error("CSV Export Error:", error);
+            toast.error("Failed to export data as CSV.");
+        }
+    };
 
     // --- Loading & Error States ---
     const isLoading = isLoadingItems || isLoadingCategories;
@@ -335,6 +469,7 @@ export default function InventoryList() {
                     setFilterPopoverOpen={setFilterPopoverOpen}
                     handleCategoryFilterChange={handleCategoryFilterChange}
                     handleStockFilterChange={handleStockFilterChange}
+                    onExportCsv={handleExportCsv}
                 />
 
                 <InventoryBulkActions
@@ -344,7 +479,7 @@ export default function InventoryList() {
                 />
 
                 {/* Table */}
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-hidden">
                     <Table data-density={density}>
                         <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
@@ -352,7 +487,18 @@ export default function InventoryList() {
                                     {headerGroup.headers.map((header) => (
                                         <TableHead
                                             key={header.id}
-                                            className="px-3 py-2 whitespace-nowrap h-auto text-xs uppercase tracking-wider font-semibold text-muted-foreground"
+                                            colSpan={header.colSpan}
+                                            className={cn({
+                                                "py-2 px-2 h-10 text-xs":
+                                                    density === "compact",
+                                                "py-3 px-3 h-11":
+                                                    density === "normal",
+                                                "py-4 px-4 h-12":
+                                                    density === "comfortable",
+                                                "pr-3":
+                                                    header.column.id ===
+                                                    "actions",
+                                            })}
                                         >
                                             {header.isPlaceholder
                                                 ? null
@@ -400,6 +546,21 @@ export default function InventoryList() {
                                                 handleEditClick={
                                                     handleEditClick
                                                 }
+                                                reorderPointItemId={
+                                                    reorderPointItemId
+                                                }
+                                                setReorderPointItemId={
+                                                    setReorderPointItemId
+                                                }
+                                                handleSaveReorderPoint={
+                                                    handleSaveReorderPoint
+                                                }
+                                                isSavingReorderPoint={
+                                                    updateReorderPointMutation.isPending
+                                                }
+                                                handleDeleteItemClick={
+                                                    handleDeleteItemClick
+                                                }
                                             />
                                         );
                                     }
@@ -408,40 +569,17 @@ export default function InventoryList() {
                                 <TableRow>
                                     <TableCell
                                         colSpan={columns.length}
-                                        className="h-48 text-center"
+                                        className="h-24 text-center text-muted-foreground"
                                     >
-                                        <div className="flex flex-col items-center justify-center text-muted-foreground space-y-3">
-                                            <Package className="h-12 w-12 text-muted-foreground/50" />
-                                            <div className="space-y-1">
-                                                <p className="font-medium">
-                                                    No Inventory Items Found
-                                                </p>
-                                                <p className="text-sm">
-                                                    {hasActiveFilters
-                                                        ? "Try adjusting your filters or search."
-                                                        : "Add your first inventory item!"}
-                                                </p>
-                                            </div>
-                                            {hasActiveFilters && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={clearAllFilters}
-                                                >
-                                                    Clear Filters
-                                                </Button>
-                                            )}
-                                            {!hasActiveFilters && (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setIsAddSheetOpen(true)
-                                                    }
-                                                >
-                                                    <PlusCircle className="mr-2 h-4 w-4" />
-                                                    Add Item
-                                                </Button>
-                                            )}
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <Inbox className="h-10 w-10 text-muted-foreground/50" />
+                                            <p className="font-medium">
+                                                No items found.
+                                            </p>
+                                            <p className="text-sm">
+                                                Add your first inventory item to
+                                                get started.
+                                            </p>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -514,6 +652,45 @@ export default function InventoryList() {
                                     <Trash2 className="mr-2 h-4 w-4" />
                                 )}
                                 Confirm Delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Confirmation Dialog for Single Item Delete */}
+                <Dialog
+                    open={isDeleteSingleItemDialogOpen}
+                    onOpenChange={setIsDeleteSingleItemDialogOpen}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Confirm Deletion</DialogTitle>
+                            <DialogDescription>
+                                Are you sure you want to delete the item
+                                <span className="font-semibold">
+                                    {` ${deletingItem?.item_name}`}
+                                </span>
+                                ? This action cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setDeletingItem(null)} // Clear item on cancel
+                                >
+                                    Cancel
+                                </Button>
+                            </DialogClose>
+                            <Button
+                                variant="destructive"
+                                onClick={confirmSingleItemDelete} // Use new handler
+                                disabled={deleteMutation.isPending}
+                            >
+                                {deleteMutation.isPending && (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )}
+                                Delete Item
                             </Button>
                         </DialogFooter>
                     </DialogContent>

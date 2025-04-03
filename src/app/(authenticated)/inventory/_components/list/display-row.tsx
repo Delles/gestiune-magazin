@@ -11,42 +11,57 @@ import {
     TooltipContent,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Pencil, BarChart4, Eye } from "lucide-react"; // Necessary icons
+import { Pencil, SlidersHorizontal, Target, Trash2 } from "lucide-react"; // Updated icons
 import { cn } from "@/lib/utils";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { InventoryItem } from "../../types/types"; // Import type
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"; // Import Popover
+import { AdjustReorderPointPopoverContent } from "./AdjustReorderPointPopover"; // Import Popover Content
 
-// --- Helper Component (ActionTooltipButton - Copied here or import from shared) ---
-// Consider moving this to a shared components utility file
-const ActionTooltipButton = ({
-    tooltip,
-    icon: Icon,
-    onClick,
-    disabled,
-}: {
-    tooltip: string;
-    icon: React.ElementType;
-    onClick: (e: React.MouseEvent) => void;
-    disabled?: boolean;
-}) => (
+// --- Helper Component (ActionTooltipButton - Modified to allow 'asChild') ---
+const ActionTooltipButton = React.forwardRef<
+    HTMLButtonElement,
+    {
+        tooltip: string;
+        icon: React.ElementType;
+        onClick?: (e: React.MouseEvent) => void; // Make onClick optional if used as PopoverTrigger
+        disabled?: boolean;
+        asChild?: boolean; // Add asChild prop
+        children?: React.ReactNode;
+    }
+>(({ tooltip, icon: Icon, onClick, disabled, asChild, children }, ref) => (
     <Tooltip>
         <TooltipTrigger asChild>
             <Button
+                ref={ref} // Forward ref
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-foreground"
                 onClick={onClick}
                 disabled={disabled}
+                asChild={asChild} // Pass asChild to Button
             >
-                <Icon className="h-4 w-4" />
-                <span className="sr-only">{tooltip}</span>
+                {/* Render children if asChild is true, otherwise render Icon */}
+                {asChild ? (
+                    children
+                ) : (
+                    <>
+                        <Icon className="h-4 w-4" />
+                        <span className="sr-only">{tooltip}</span>
+                    </>
+                )}
             </Button>
         </TooltipTrigger>
         <TooltipContent side="top">
             <p>{tooltip}</p>
         </TooltipContent>
     </Tooltip>
-);
+));
+ActionTooltipButton.displayName = "ActionTooltipButton";
 
 // --- Props Interface ---
 interface DisplayRowProps {
@@ -55,6 +70,12 @@ interface DisplayRowProps {
     router: AppRouterInstance;
     setAdjustingStockItem: (item: InventoryItem | null) => void;
     handleEditClick: (itemId: string) => void;
+    // Update props for Popover handling
+    reorderPointItemId: string | null;
+    setReorderPointItemId: (id: string | null) => void;
+    handleSaveReorderPoint: (newPoint: number | null) => void;
+    isSavingReorderPoint: boolean;
+    handleDeleteItemClick: (item: InventoryItem) => void;
 }
 
 // --- Main Component ---
@@ -65,12 +86,27 @@ const DisplayRow = React.memo(
         router,
         setAdjustingStockItem,
         handleEditClick,
+        // Destructure new props
+        reorderPointItemId,
+        setReorderPointItemId,
+        handleSaveReorderPoint,
+        isSavingReorderPoint,
+        handleDeleteItemClick,
     }: DisplayRowProps) => {
         const item = row.original;
+        const isPopoverOpen = reorderPointItemId === item.id;
+
+        const handleOpenChange = (open: boolean) => {
+            setReorderPointItemId(open ? item.id : null);
+        };
+
+        const handleCancel = () => {
+            setReorderPointItemId(null);
+        };
 
         return (
             <TableRow
-                key={row.id} // Key is technically handled by parent, but good practice
+                key={row.id}
                 data-state={row.getIsSelected() && "selected"}
                 onClick={() => router.push(`/inventory/${item.id}`)}
                 className={cn(
@@ -91,9 +127,10 @@ const DisplayRow = React.memo(
                         <TableCell
                             key={cell.id}
                             className={cn("align-top", {
-                                "px-2 py-1": density === "compact",
+                                "px-2 py-1.5": density === "compact",
                                 "px-3 py-3": density === "normal",
                                 "px-4 py-4": density === "comfortable",
+                                "pr-3": cell.column.id === "actions",
                             })}
                             onClick={
                                 isInteractiveColumn
@@ -102,8 +139,9 @@ const DisplayRow = React.memo(
                             }
                         >
                             {cell.column.id === "actions" ? (
-                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <div className="flex justify-end gap-1 items-center transition-opacity duration-200">
                                     <TooltipProvider delayDuration={100}>
+                                        {/* Edit Button */}
                                         <ActionTooltipButton
                                             tooltip="Edit Item"
                                             icon={Pencil}
@@ -112,22 +150,65 @@ const DisplayRow = React.memo(
                                                 handleEditClick(item.id);
                                             }}
                                         />
+                                        {/* Adjust Stock Button */}
                                         <ActionTooltipButton
                                             tooltip="Adjust Stock"
-                                            icon={BarChart4}
+                                            icon={SlidersHorizontal}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setAdjustingStockItem(item);
                                             }}
                                         />
+                                        {/* Adjust Reorder Point Popover & Trigger */}
+                                        <Popover
+                                            open={isPopoverOpen}
+                                            onOpenChange={handleOpenChange}
+                                        >
+                                            <PopoverTrigger asChild>
+                                                {/* Use forwardRef version of ActionTooltipButton */}
+                                                <ActionTooltipButton
+                                                    tooltip="Adjust Reorder Point"
+                                                    icon={Target}
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
+                                                    } // Prevent row click, open handled by Popover
+                                                />
+                                            </PopoverTrigger>
+                                            <PopoverContent
+                                                className="p-0 w-auto"
+                                                side="bottom"
+                                                align="end"
+                                            >
+                                                {/* Render content only when open to fetch correct item data potentially */}
+                                                {isPopoverOpen && (
+                                                    <AdjustReorderPointPopoverContent
+                                                        itemId={item.id}
+                                                        currentItemName={
+                                                            item.item_name
+                                                        }
+                                                        currentReorderPoint={
+                                                            item.reorder_point
+                                                        }
+                                                        unit={item.unit}
+                                                        onSave={
+                                                            handleSaveReorderPoint
+                                                        }
+                                                        onCancel={handleCancel} // Use local cancel
+                                                        isSaving={
+                                                            isSavingReorderPoint
+                                                        }
+                                                    />
+                                                )}
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        {/* Delete Button */}
                                         <ActionTooltipButton
-                                            tooltip="View Details"
-                                            icon={Eye}
+                                            tooltip="Delete Item"
+                                            icon={Trash2}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                router.push(
-                                                    `/inventory/${item.id}`
-                                                );
+                                                handleDeleteItemClick(item);
                                             }}
                                         />
                                     </TooltipProvider>

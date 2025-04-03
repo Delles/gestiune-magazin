@@ -156,3 +156,25 @@ export async function getStockTransactions(
     const data = await response.json();
     return data as StockTransaction[]; // Assuming API returns correct shape
 }
+
+// Function to update only the reorder point for an item
+export async function updateItemReorderPoint(
+    id: string,
+    reorder_point: number | null
+): Promise<{ id: string; reorder_point: number | null }> {
+    const response = await fetch(`/api/inventory/items/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reorder_point }), // Only send reorder_point
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+            errorData.message ||
+                errorData.error ||
+                `Failed to update reorder point for item ${id}`
+        );
+    }
+    return response.json(); // API should return { id, reorder_point }
+}

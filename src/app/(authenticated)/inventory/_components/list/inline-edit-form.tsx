@@ -281,38 +281,36 @@ const InlineEditFormRow = React.memo(
                     );
                 case "actions":
                     return (
-                        <div className="flex justify-end gap-1 items-center h-full pr-1">
+                        <div className="flex justify-end gap-1 items-center">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive transition-colors duration-150"
                                 onClick={onCancel}
                                 disabled={mutation.isPending}
-                                aria-label="Cancel edit"
                             >
                                 <X className="h-4 w-4" />
+                                <span className="sr-only">Cancel</span>
                             </Button>
                             <Button
                                 type="submit"
-                                size="icon"
                                 variant="ghost"
-                                className="h-7 w-7 text-green-600 hover:bg-green-100 hover:text-green-700"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-primary transition-colors duration-150"
+                                disabled={
+                                    mutation.isPending ||
+                                    !form.formState.isValid
+                                }
                                 form={formId}
-                                disabled={mutation.isPending}
                             >
                                 {mutation.isPending ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                     <Check className="h-4 w-4" />
                                 )}
-                                <span className="sr-only">Save Changes</span>
+                                <span className="sr-only">Save</span>
                             </Button>
-                            <form
-                                id={formId}
-                                onSubmit={form.handleSubmit(onSubmit)}
-                                className="hidden"
-                            ></form>
                         </div>
                     );
                 default:
@@ -354,8 +352,8 @@ const InlineEditFormRow = React.memo(
         return (
             <Form {...form}>
                 <TableRow
-                    data-state="editing"
-                    className="bg-muted/30 hover:bg-muted/40"
+                    key={item.id}
+                    className="border-l-2 border-primary bg-muted/40 hover:bg-muted/50"
                 >
                     {visibleColumns.map((columnId) => (
                         <TableCell

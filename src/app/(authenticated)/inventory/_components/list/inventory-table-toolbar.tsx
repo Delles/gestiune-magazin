@@ -41,11 +41,13 @@ import {
     Settings2,
     CheckCircle2, // For stock status filter icon
     AlertCircle, // For stock status filter icon
-    // XCircle is already imported
+    Download, // Add Download icon
+    ListFilter, // Icon for category filter badge
 } from "lucide-react";
 import { InventoryItem, Category } from "../../types/types";
 import AddItemForm from "../forms/add-item-form";
 import { SortableHeader } from "./inventory-columns"; // Import SortableHeader
+import { cn } from "@/lib/utils"; // Import cn utility
 
 // --- Stock Status Options (Moved from columns, as filter UI is here) ---
 const stockStatuses = [
@@ -79,6 +81,7 @@ interface InventoryTableToolbarProps {
         statusValue: string,
         checked: boolean | string
     ) => void;
+    onExportCsv: () => void; // Add prop for export handler
 }
 
 export function InventoryTableToolbar({
@@ -98,7 +101,16 @@ export function InventoryTableToolbar({
     setFilterPopoverOpen,
     handleCategoryFilterChange,
     handleStockFilterChange,
+    onExportCsv, // Destructure new prop
 }: InventoryTableToolbarProps) {
+    // Get active filter values
+    const categoryFilterColumn = table.getColumn("category_name");
+    const categoryFilterValue =
+        (categoryFilterColumn?.getFilterValue() as string[]) ?? [];
+    const stockFilterColumn = table.getColumn("stock_quantity");
+    const stockFilterValue =
+        (stockFilterColumn?.getFilterValue() as string[]) ?? [];
+
     // Helper function to get header name for visibility toggle
     const getHeaderName = (column: Column<InventoryItem, unknown>): string => {
         const headerDef = column.columnDef.header;
@@ -135,15 +147,20 @@ export function InventoryTableToolbar({
     const handleAddSheetClose = () => setIsAddSheetOpen(false);
 
     return (
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between py-3">
-            {/* Left Side: Filters & Page Size */}
-            <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3">
+            {/* Group 1 (Left/Center): Filters, Badges, Clear, Search */}
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {/* Filter Popover Button */}
                 <Popover
                     open={filterPopoverOpen}
                     onOpenChange={setFilterPopoverOpen}
                 >
                     <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 transition-colors duration-150"
+                        >
                             <Filter className="mr-2 h-4 w-4" /> Filter
                             {activeFilterCount > 0 && (
                                 <>
@@ -175,13 +192,11 @@ export function InventoryTableToolbar({
                                                 .getColumn("category_name")
                                                 ?.getFilterValue() as string[]) ??
                                             [];
-                                        // --- Get Count ---
                                         const facetedValues = table
                                             .getColumn("category_name")
                                             ?.getFacetedUniqueValues();
                                         const count =
                                             facetedValues?.get(cat.name) ?? 0;
-                                        // --- End Get Count ---
                                         return (
                                             <div
                                                 key={cat.id}
@@ -205,7 +220,7 @@ export function InventoryTableToolbar({
                                                         !filterValue.includes(
                                                             cat.name
                                                         )
-                                                    } // Disable if count is 0 and not selected
+                                                    }
                                                 />
                                                 <Label
                                                     htmlFor={`filter-cat-${cat.id}`}
@@ -239,13 +254,11 @@ export function InventoryTableToolbar({
                                             .getColumn("stock_quantity")
                                             ?.getFilterValue() as string[]) ??
                                         [];
-                                    // --- Get Count ---
                                     const facetedValues = table
                                         .getColumn("stock_quantity")
                                         ?.getFacetedUniqueValues();
                                     const count =
-                                        facetedValues?.get(status.value) ?? 0; // Status value is the key now
-                                    // --- End Get Count ---
+                                        facetedValues?.get(status.value) ?? 0;
                                     return (
                                         <div
                                             key={status.value}
@@ -262,15 +275,19 @@ export function InventoryTableToolbar({
                                                         checked
                                                     )
                                                 }
-                                                // Optionally disable if count is 0 (and not selected)
-                                                // disabled={count === 0 && !filterValue.includes(status.value)}
+                                                disabled={
+                                                    count === 0 &&
+                                                    !filterValue.includes(
+                                                        status.value
+                                                    )
+                                                }
                                             />
                                             <Label
                                                 htmlFor={`filter-stock-${status.value}`}
-                                                className="text-sm font-normal cursor-pointer flex items-center justify-between w-full"
+                                                className="text-sm font-normal cursor-pointer flex justify-between items-center w-full"
                                             >
-                                                <span className="flex items-center">
-                                                    <status.icon className="h-3.5 w-3.5 mr-1.5" />
+                                                <span className="flex items-center gap-1.5">
+                                                    <status.icon className="h-3.5 w-3.5 text-muted-foreground" />
                                                     {status.label}
                                                 </span>
                                                 {count > 0 && (
@@ -284,43 +301,122 @@ export function InventoryTableToolbar({
                                 })}
                             </div>
                         </div>
-                        <Separator />
-                        <div className="p-2 flex justify-end">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={clearAllFilters}
-                                disabled={!hasActiveFilters}
-                            >
-                                <XCircle className="mr-1.5 h-3.5 w-3.5" />
-                                Clear Filters
-                            </Button>
-                        </div>
+                        {/* Clear Button Inside Popover */}
+                        {hasActiveFilters && (
+                            <div className="p-4 pt-0 border-t">
+                                <Button
+                                    onClick={() => {
+                                        clearAllFilters();
+                                        setFilterPopoverOpen(false);
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-destructive hover:text-destructive"
+                                >
+                                    Clear All Filters
+                                </Button>
+                            </div>
+                        )}
                     </PopoverContent>
                 </Popover>
 
-                {/* Make Clear Filters button more obvious when active outside popover */}
+                {/* Active Filter Badges */}
+                <div className="flex items-center gap-1.5">
+                    {categoryFilterValue.length > 0 && (
+                        <Badge
+                            variant="secondary"
+                            className="px-1.5 py-0.5 text-xs font-normal"
+                        >
+                            <ListFilter className="h-3 w-3 mr-1" />
+                            Category ({categoryFilterValue.length})
+                        </Badge>
+                    )}
+                    {stockFilterValue.length > 0 && (
+                        <Badge
+                            variant={
+                                stockFilterValue.length === 1 &&
+                                stockFilterValue[0] === "out_of_stock"
+                                    ? "destructive"
+                                    : "secondary"
+                            }
+                            className={cn(
+                                "px-1.5 py-0.5 text-xs font-normal",
+                                stockFilterValue.length === 1 &&
+                                    stockFilterValue[0] === "low_stock" &&
+                                    "badge-warning"
+                            )}
+                        >
+                            {stockFilterValue.length === 1 ? (
+                                stockStatuses.find(
+                                    (s) => s.value === stockFilterValue[0]
+                                )?.icon &&
+                                React.createElement(
+                                    stockStatuses.find(
+                                        (s) => s.value === stockFilterValue[0]
+                                    )!.icon,
+                                    { className: "h-3 w-3 mr-1" }
+                                )
+                            ) : (
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                            )}
+                            Status ({stockFilterValue.length})
+                        </Badge>
+                    )}
+                </div>
+
+                {/* Clear Filters Button (Outside Popover) */}
                 {hasActiveFilters && (
                     <Button
                         variant="ghost"
-                        size="sm"
                         onClick={clearAllFilters}
-                        className="h-9 text-destructive hover:bg-destructive/10 hover:text-destructive px-2"
+                        className="h-9 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-destructive/50 transition-colors duration-150"
                     >
-                        <XCircle className="mr-1.5 h-4 w-4" />
-                        Clear ({activeFilterCount + (globalFilter ? 1 : 0)})
+                        <XCircle className="mr-1 h-3.5 w-3.5" />
+                        Clear
                     </Button>
                 )}
 
-                {/* Density and Column Visibility Dropdown */}
+                {/* Search Bar */}
+                <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search items..."
+                        value={globalFilter ?? ""}
+                        onChange={(event) =>
+                            setGlobalFilter(event.target.value)
+                        }
+                        className="h-9 pl-9 w-full focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
+                    />
+                    {globalFilter && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                            onClick={() => setGlobalFilter("")}
+                        >
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">Clear search</span>
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            {/* Group 2 (Right): View, Export, Add */}
+            <div className="flex items-center gap-2">
+                {/* View Dropdown */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9">
-                            <Settings2 className="mr-2 h-4 w-4" /> View
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 transition-colors duration-150"
+                        >
+                            <Settings2 className="mr-2 h-4 w-4" />
+                            View
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                        <DropdownMenuLabel>Table Density</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Density</DropdownMenuLabel>
                         <DropdownMenuRadioGroup
                             value={density}
                             onValueChange={
@@ -339,63 +435,63 @@ export function InventoryTableToolbar({
                         </DropdownMenuRadioGroup>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
                         {table
-                            .getAllLeafColumns()
-                            .filter((column) => column.getCanHide())
-                            .map((column) => (
-                                <DropdownMenuCheckboxItem
-                                    key={column.id}
-                                    className="capitalize"
-                                    checked={column.getIsVisible()}
-                                    onCheckedChange={(value) =>
-                                        column.toggleVisibility(!!value)
-                                    }
-                                    onSelect={(e) => e.preventDefault()} // Prevent closing menu
-                                >
-                                    {getHeaderName(column)}
-                                </DropdownMenuCheckboxItem>
-                            ))}
+                            .getAllColumns()
+                            .filter(
+                                (column) =>
+                                    typeof column.accessorFn !== "undefined" &&
+                                    column.getCanHide()
+                            )
+                            .map((column) => {
+                                return (
+                                    <DropdownMenuCheckboxItem
+                                        key={column.id}
+                                        className="capitalize"
+                                        checked={column.getIsVisible()}
+                                        onCheckedChange={(value) =>
+                                            column.toggleVisibility(!!value)
+                                        }
+                                    >
+                                        {getHeaderName(column)}
+                                    </DropdownMenuCheckboxItem>
+                                );
+                            })}
                     </DropdownMenuContent>
                 </DropdownMenu>
-            </div>
 
-            {/* Right Side: Search & Add */}
-            <div className="flex gap-2 items-center w-full sm:w-auto">
-                <div className="relative flex-1 sm:flex-initial sm:w-64">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search items..."
-                        value={globalFilter}
-                        onChange={(e) => setGlobalFilter(e.target.value)}
-                        className="pl-9 h-9"
-                    />
-                    {globalFilter && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-foreground"
-                            onClick={() => setGlobalFilter("")}
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </Button>
-                    )}
-                </div>
+                {/* Export Button */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 ml-auto sm:ml-0 transition-colors duration-150"
+                    onClick={onExportCsv}
+                    disabled={!table.getFilteredRowModel().rows.length}
+                >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                </Button>
+
+                {/* Add Item Button / Sheet */}
                 <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
                     <SheetTrigger asChild>
-                        <Button size="sm" className="h-9 whitespace-nowrap">
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                        <Button
+                            size="sm"
+                            className="h-9 transition-colors duration-150"
+                        >
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Add Item
                         </Button>
                     </SheetTrigger>
-                    <SheetContent className="sm:max-w-xl w-[90vw] overflow-y-auto p-0">
-                        <SheetHeader className="p-6 pb-4">
+                    <SheetContent className="sm:max-w-xl">
+                        <SheetHeader>
                             <SheetTitle>Add New Inventory Item</SheetTitle>
                             <SheetDescription>
-                                Fill in the details below to add a new item to
-                                your stock.
+                                Enter the details for the new inventory item.
                             </SheetDescription>
                         </SheetHeader>
-                        <Separator />
-                        <div className="p-6">
+                        <Separator className="my-4" />
+                        <div className="px-6 pb-6">
                             <AddItemForm
                                 onSuccess={handleAddSheetClose}
                                 onClose={handleAddSheetClose}

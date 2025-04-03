@@ -129,6 +129,21 @@ export const inventoryItemUpdateSchema = baseItemEditableSchema.extend({
     // Purchase Price is intentionally excluded
 });
 
+// Schema for updating just the reorder point
+export const inventoryItemReorderPointUpdateSchema = z.object({
+    reorder_point: z
+        .number()
+        .min(0)
+        .int("Reorder point must be a whole number")
+        .nullable()
+        .or(
+            z
+                .string()
+                .regex(/^\d*$/)
+                .transform((v) => (v === "" ? null : Number(v)))
+        ),
+});
+
 // Schema for stock adjustment form (used by StockAdjustmentForm component)
 export const stockAdjustmentSchema = z.object({
     type: z.enum(["increase", "decrease"]), // Internal UI state, might not be sent directly if using RPC for purchases
@@ -201,5 +216,8 @@ export type InventoryItemCreateFormValues = z.infer<
 >;
 export type InventoryItemUpdateFormValues = z.infer<
     typeof inventoryItemUpdateSchema
+>;
+export type InventoryItemReorderPointUpdateFormValues = z.infer<
+    typeof inventoryItemReorderPointUpdateSchema
 >;
 export type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentSchema>;

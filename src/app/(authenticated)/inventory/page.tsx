@@ -64,14 +64,14 @@ export default async function InventoryPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Link
                     href="/inventory"
-                    className="hover:opacity-90 transition-opacity"
+                    className="group rounded-lg border border-border bg-card text-card-foreground shadow-sm outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:shadow-md hover:border-primary/50"
                 >
-                    <Card>
+                    <Card className="h-full border-0 shadow-none group-hover:shadow-none">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">
                                 Total Items
                             </CardTitle>
-                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <Package className="h-5 w-5 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">
@@ -85,14 +85,14 @@ export default async function InventoryPage() {
                 </Link>
                 <Link
                     href="/inventory?status=low_stock"
-                    className="hover:opacity-90 transition-opacity"
+                    className="group rounded-lg border border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30 text-card-foreground shadow-sm outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:shadow-md hover:border-primary/50"
                 >
-                    <Card>
+                    <Card className="h-full border-0 shadow-none bg-transparent group-hover:shadow-none">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">
                                 Low Stock Items
                             </CardTitle>
-                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">
@@ -106,14 +106,14 @@ export default async function InventoryPage() {
                 </Link>
                 <Link
                     href="/inventory?status=out_of_stock"
-                    className="hover:opacity-90 transition-opacity"
+                    className="group rounded-lg border border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/30 text-card-foreground shadow-sm outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:shadow-md hover:border-primary/50"
                 >
-                    <Card>
+                    <Card className="h-full border-0 shadow-none bg-transparent group-hover:shadow-none">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">
                                 Out of Stock
                             </CardTitle>
-                            <PackageCheck className="h-4 w-4 text-destructive" />
+                            <PackageCheck className="h-5 w-5 text-destructive" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">

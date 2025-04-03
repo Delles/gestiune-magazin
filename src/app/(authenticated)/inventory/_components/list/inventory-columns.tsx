@@ -12,6 +12,7 @@ import {
 import { ArrowUpDown, Package } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { InventoryItem } from "../../types/types";
+import { StockQuantityVisual } from "./StockQuantityVisual";
 
 // --- Helper Components ---
 export const SortableHeader = ({
@@ -71,13 +72,23 @@ export const columns: ColumnDef<InventoryItem>[] = [
             <SortableHeader column={column}>Item Name</SortableHeader>
         ),
         cell: ({ row }) => {
+            const itemName = row.getValue("item_name") as string;
             return (
-                <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate">
-                        {row.getValue("item_name")}
-                    </span>
-                </div>
+                <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 max-w-xs">
+                                <Package className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium truncate">
+                                    {itemName}
+                                </span>
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{itemName}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             );
         },
     },
@@ -110,65 +121,12 @@ export const columns: ColumnDef<InventoryItem>[] = [
         ),
         cell: ({ row }) => {
             const item = row.original;
-            const quantity = item.stock_quantity;
-            const reorderPoint = item.reorder_point ?? 0; // Default reorder point to 0 if null
-            const unit = item.unit;
-
-            let status: "in_stock" | "low_stock" | "out_of_stock" = "in_stock";
-            let percentage = 100; // Default to full if no reorder point or well above
-            let progressBarColor = "bg-emerald-500"; // Green
-
-            if (quantity <= 0) {
-                status = "out_of_stock";
-                percentage = 0;
-                progressBarColor = "bg-destructive"; // Red
-            } else if (reorderPoint > 0) {
-                // Calculate percentage relative to reorder point, capped at 100%
-                percentage = Math.min(
-                    100,
-                    Math.max(0, (quantity / reorderPoint) * 50 + 50)
-                ); // Scaled: 0 stock = 0%, reorder point = 50%, 2x reorder point = 100%
-
-                if (quantity <= reorderPoint) {
-                    status = "low_stock";
-                    progressBarColor = "bg-yellow-500"; // Yellow
-                }
-            }
-
             return (
-                <div className="flex flex-col items-start w-32">
-                    <div className="flex items-baseline gap-1 w-full">
-                        <span className="font-semibold text-base">
-                            {quantity}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                            {unit}
-                        </span>
-                    </div>
-                    <TooltipProvider delayDuration={100}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className="relative w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1 cursor-default">
-                                    <div
-                                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${progressBarColor}`}
-                                        style={{
-                                            width: `${percentage}%`,
-                                        }}
-                                    />
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                {status === "low_stock" &&
-                                    `Low Stock (Reorder: ${reorderPoint} ${unit})`}
-                                {status === "out_of_stock" && "Out of Stock"}
-                                {status === "in_stock" &&
-                                    (reorderPoint > 0
-                                        ? `In Stock (Reorder: ${reorderPoint} ${unit})`
-                                        : "In Stock")}
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                </div>
+                <StockQuantityVisual
+                    quantity={item.stock_quantity}
+                    reorderPoint={item.reorder_point}
+                    unit={item.unit}
+                />
             );
         },
         filterFn: (row, id, value: string[]) => {
@@ -190,15 +148,15 @@ export const columns: ColumnDef<InventoryItem>[] = [
         // enableColumnFilter: true, // Can be enabled later if needed directly on column
     },
     {
-        accessorKey: "initial_purchase_price",
+        accessorKey: "average_purchase_price",
         header: ({ column }) => (
             <SortableHeader column={column} align="right">
-                Purchase Price
+                Avg. Purch. Price
             </SortableHeader>
         ),
         cell: ({ row }) => (
             <div className="text-right font-mono text-sm">
-                {formatCurrency(row.getValue("initial_purchase_price"))}
+                {formatCurrency(row.getValue("average_purchase_price"))}
             </div>
         ),
     },

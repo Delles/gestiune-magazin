@@ -32,6 +32,7 @@ export async function GET() {
             .select(
                 `
                 *,
+                average_purchase_price,
                 categories (
                     id,
                     name
