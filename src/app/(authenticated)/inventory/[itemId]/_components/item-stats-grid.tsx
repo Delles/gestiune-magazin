@@ -17,7 +17,8 @@ import {
     AlertCircle,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-import StockAdjustmentForm from "../../_components/stock-adjustment"; // Adjust path as necessary
+import IncreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/IncreaseStockForm";
+import DecreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/DecreaseStockForm";
 
 interface ItemStatsGridProps {
     itemId: string;
@@ -50,6 +51,18 @@ export default function ItemStatsGrid({
         setReducePopoverOpen(false);
     };
 
+    // Prevent popovers from closing when clicking outside
+    const handlePopoverOpenChange = (
+        open: boolean,
+        setter: React.Dispatch<React.SetStateAction<boolean>>
+    ) => {
+        if (open) {
+            setter(true);
+        }
+        // When trying to close, we don't set to false
+        // This way only our explicit handlers can close the popover
+    };
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Current Stock Card */}
@@ -80,7 +93,9 @@ export default function ItemStatsGrid({
                         {/* Replace Dialog with Popover for Add */}
                         <Popover
                             open={addPopoverOpen}
-                            onOpenChange={setAddPopoverOpen}
+                            onOpenChange={(open) =>
+                                handlePopoverOpenChange(open, setAddPopoverOpen)
+                            }
                         >
                             <PopoverTrigger asChild>
                                 <Button size="sm" variant="outline">
@@ -93,12 +108,11 @@ export default function ItemStatsGrid({
                                 side="bottom"
                                 align="start"
                             >
-                                <StockAdjustmentForm
+                                <IncreaseStockForm
                                     itemId={itemId}
                                     itemName={itemName}
                                     currentStock={currentStock}
                                     unit={unit}
-                                    initialType="increase"
                                     onSuccess={handleClosePopovers}
                                     onClose={handleClosePopovers}
                                 />
@@ -108,7 +122,12 @@ export default function ItemStatsGrid({
                         {/* Replace Dialog with Popover for Reduce */}
                         <Popover
                             open={reducePopoverOpen}
-                            onOpenChange={setReducePopoverOpen}
+                            onOpenChange={(open) =>
+                                handlePopoverOpenChange(
+                                    open,
+                                    setReducePopoverOpen
+                                )
+                            }
                         >
                             <PopoverTrigger asChild>
                                 <Button
@@ -127,12 +146,12 @@ export default function ItemStatsGrid({
                                 side="bottom"
                                 align="start"
                             >
-                                <StockAdjustmentForm
+                                <DecreaseStockForm
                                     itemId={itemId}
                                     itemName={itemName}
                                     currentStock={currentStock}
                                     unit={unit}
-                                    initialType="decrease"
+                                    averagePurchasePrice={averagePurchasePrice}
                                     onSuccess={handleClosePopovers}
                                     onClose={handleClosePopovers}
                                 />

@@ -29,7 +29,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 -   **Icons:** `lucide-react`
 -   **Language:** TypeScript (Strict Mode)
 -   **Linting/Formatting:** ESLint + Prettier (Configured for consistency).
--   **Testing:** Vitest (Unit/Integration), React Testing Library (Component Testing), Playwright (E2E Testing) - *Recommended setup*.
+-   **Testing:** Vitest (Unit/Integration), React Testing Library (Component Testing), Playwright (E2E Testing) - _Recommended setup_.
 
 ## 3. Core Principles & Architecture
 
@@ -40,7 +40,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
     -   **Global Client State:** Zustand (simple, shared UI state).
     -   **Local Component State:** `useState`, `useReducer`.
     -   **URL State:** Next.js Router (`useRouter`, `useSearchParams`, `usePathname`).
--   **API Layer:** Use Next.js API Routes (`/app/api`) or Server Actions for backend logic and database mutations. RSCs can fetch read-only data directly *if RLS is secure*.
+-   **API Layer:** Use Next.js API Routes (`/app/api`) or Server Actions for backend logic and database mutations. RSCs can fetch read-only data directly _if RLS is secure_.
 -   **Component-Based UI:** Build with reusable Shadcn UI components. Favor composition.
 -   **Performance Focused:** Optimize bundle size, leverage Next.js caching, use `next/image`, lazy load components where appropriate.
 -   **Security Mindset:** Mandatory Supabase RLS, input validation (client & server with Zod), secure API routes/Server Actions, environment variables management.
@@ -86,7 +86,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 
 -   **React-RULE 1: Functional Components & Hooks:** Use only functional components with React Hooks.
 -   **React-RULE 2: Composition:** Favor composition over large, monolithic components. Break UI into small, reusable, focused components.
--   **React-RULE 3: Props Typing:** Define TypeScript `interface` for *all* component props. Use `Readonly<Props>` if props shouldn't be mutated.
+-   **React-RULE 3: Props Typing:** Define TypeScript `interface` for _all_ component props. Use `Readonly<Props>` if props shouldn't be mutated.
 -   **React-RULE 4: `use client` Minimization:** Use Server Components by default. Apply `'use client'` only when necessary (state, effects, event handlers, browser APIs). Place it at the component level, not the whole file unless unavoidable.
 -   **React-RULE 5: Server Component Data Fetching:** Fetch data directly within Server Components using `async/await`. Handle loading/error states using Suspense and Error Boundaries (`error.tsx`).
 -   **React-RULE 6: Optimistic Updates:** Use `useOptimistic` for UI updates that need to feel instantaneous during mutations (e.g., adding an item to a list before the API confirms).
@@ -94,7 +94,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 
 ### Data Fetching & State Rules (State)
 
--   **State-RULE 1: TanStack Query for Server State (Client):** Use TanStack Query (`useQuery`, `useMutation`) for managing server state *on the client* (caching, background updates, mutations).
+-   **State-RULE 1: TanStack Query for Server State (Client):** Use TanStack Query (`useQuery`, `useMutation`) for managing server state _on the client_ (caching, background updates, mutations).
 -   **State-RULE 2: Query Keys:** Use descriptive array-based query keys: `['entity', 'list', { filters }]`, `['entity', 'detail', id]`. Example: `['products', 'list', { categoryId: 5 }]`, `['products', 'detail', productId]`.
 -   **State-RULE 3: Mutations & Invalidation:** Use `useMutation` for CUD operations. Invalidate relevant queries `onSuccess` or `onSettled` using `queryClient.invalidateQueries()`.
 -   **State-RULE 4: Optimistic Mutations (TanStack Query):** Implement optimistic updates via `useMutation`'s `onMutate`, `onError`, `onSettled` for complex client-side updates during mutations.
@@ -107,7 +107,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 ### Form Rules (React Hook Form + Zod) (Form)
 
 -   **Form-RULE 1: React Hook Form:** Use `react-hook-form` (`useForm`) for all form state management and submission.
--   **Form-RULE 2: Zod Validation:** Define Zod schemas for *all* form validation. Use `@hookform/resolvers/zod` for integration: `resolver: zodResolver(mySchema)`.
+-   **Form-RULE 2: Zod Validation:** Define Zod schemas for _all_ form validation. Use `@hookform/resolvers/zod` for integration: `resolver: zodResolver(mySchema)`.
 -   **Form-RULE 3: Schema-Derived Types:** Derive form value types from Zod schemas using `z.infer<typeof mySchema>`.
 -   **Form-RULE 4: Shadcn Integration:** Use Shadcn UI's `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` components which are built on RHF's `<Controller>`.
 -   **Form-RULE 5: Error Display:** Display validation errors using `<FormMessage />` or by accessing `formState.errors`. Style errors consistently.
@@ -125,7 +125,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 
 ### Database Rules (Supabase) (DB)
 
--   **DB-RULE 1: Supabase Client:** Use the official `@supabase/supabase-js` client. Initialize it securely (use environment variables for URL and `anon` key for client-side, `service_role` key *only* in secure backend environments like API routes/Server Actions).
+-   **DB-RULE 1: Supabase Client:** Use the official `@supabase/supabase-js` client. Initialize it securely (use environment variables for URL and `anon` key for client-side, `service_role` key _only_ in secure backend environments like API routes/Server Actions).
 -   **DB-RULE 2: Backend Logic Layer:** Perform mutations (Create, Update, Delete) and sensitive read operations via Next.js API Routes or Server Actions. **Never expose the `service_role` key to the client.**
 -   **DB-RULE 3: RLS Mandatory:** Enable and configure Row Level Security (RLS) policies on **ALL** tables containing user data or sensitive information. Default to DENY. Test policies thoroughly.
 -   **DB-RULE 4: Secure Functions/Triggers:** When defining SQL functions/triggers (especially `SECURITY DEFINER`):
@@ -140,6 +140,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
 ### Code Organization & Conventions (Org)
 
 -   **Org-RULE 1: File Structure:** Maintain a clear structure. The proposed structure is good. Consider adding:
+
     -   `src/hooks/`: For reusable custom hooks.
     -   `src/actions/`: For Server Actions.
     -   `src/queries/`: For reusable TanStack Query functions/keys.
@@ -195,8 +196,7 @@ This project is an Inventory Management System built using Next.js 15, React 19,
     -   E2E Test: Key user flows (Login, Add Item, Create Sale) (Playwright).
     -   Test RLS Policies: Write specific tests for Supabase RLS.
 -   **Best-RULE 3: Environment Variables:** Use `.env.local` for secrets (ignored by git). Use `.env` for non-secret defaults (committed). Prefix client-exposed variables with `NEXT_PUBLIC_`. Validate environment variables on startup.
--   **Best-RULE 4: Security:** Regularly update dependencies (`npm audit`). Validate *all* external input (user forms, API requests). Implement rate limiting on critical API routes. Be mindful of Supabase key exposure.
+-   **Best-RULE 4: Security:** Regularly update dependencies (`npm audit`). Validate _all_ external input (user forms, API requests). Implement rate limiting on critical API routes. Be mindful of Supabase key exposure.
 -   **Best-RULE 5: Developer Experience:** Use Husky for pre-commit hooks (linting, formatting, testing). Consider Storybook for isolated UI component development and documentation.
 
 --- END OF RULES FILE ---
-

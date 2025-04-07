@@ -40,8 +40,6 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import StockAdjustmentForm from "../stock-adjustment";
-import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { useDebounce } from "@/hooks/use-debounce"; // Corrected path
 import { toast } from "sonner";
 import InlineEditFormRow from "./inline-edit-form";
@@ -599,26 +597,31 @@ export default function InventoryList() {
                         }}
                     >
                         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
-                            <VisuallyHidden>
+                            <DialogHeader>
                                 <DialogTitle>
                                     Adjust Stock for{" "}
                                     {adjustingStockItem?.item_name}
                                 </DialogTitle>
-                            </VisuallyHidden>
-                            <DialogDescription>
-                                Enter the new quantity or adjustment amount.
-                            </DialogDescription>
-                            {adjustingStockItem && (
-                                <StockAdjustmentForm
-                                    itemId={adjustingStockItem.id}
-                                    itemName={adjustingStockItem.item_name}
-                                    unit={adjustingStockItem.unit}
-                                    currentStock={
-                                        adjustingStockItem.stock_quantity
-                                    }
-                                    onClose={() => setAdjustingStockItem(null)}
-                                />
-                            )}
+                                <DialogDescription>
+                                    Please use the + and - buttons in the item
+                                    details page to adjust stock.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="flex justify-center">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setAdjustingStockItem(null);
+                                        if (adjustingStockItem) {
+                                            router.push(
+                                                `/inventory/${adjustingStockItem.id}`
+                                            );
+                                        }
+                                    }}
+                                >
+                                    Go to Item Details
+                                </Button>
+                            </div>
                         </DialogContent>
                     </Dialog>
                 )}

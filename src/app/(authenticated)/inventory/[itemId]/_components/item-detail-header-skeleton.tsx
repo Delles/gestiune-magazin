@@ -5,7 +5,8 @@ import { ArrowLeftIcon, Package, PencilIcon, MoreVertical } from "lucide-react";
 
 export default function ItemDetailHeaderSkeleton() {
     return (
-        <>
+        // Wrap in sticky container to match the actual component
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-4 mb-6 border-b">
             {/* Back Navigation Skeleton */}
             <div className="flex items-center space-x-2 mb-4">
                 <Button variant="outline" size="sm" disabled>
@@ -15,7 +16,7 @@ export default function ItemDetailHeaderSkeleton() {
             </div>
 
             {/* Item Header Skeleton */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4 mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 {/* Left Side: Info Skeleton */}
                 <div className="flex-1 space-y-2 min-w-0">
                     {/* Title Row Skeleton with potential Badge Skeletons */}
@@ -39,26 +40,23 @@ export default function ItemDetailHeaderSkeleton() {
                             className="h-4 mx-1"
                         />
                         <Skeleton className="h-5 w-16" /> {/* Unit Skeleton */}
-                        {/* No SKU skeleton needed */}
                     </div>
                 </div>
 
-                {/* Right Side: Actions Skeleton */}
+                {/* Right Side: Actions Skeleton - Updated to match new layout */}
                 <div className="flex items-center gap-2 flex-shrink-0 mt-4 md:mt-0">
-                    <Button variant="secondary" disabled>
-                        <Skeleton className="h-4 w-20" />{" "}
-                        {/* Adjust Stock Text Skeleton */}
-                    </Button>
+                    {/* Edit Button Skeleton */}
                     <Button variant="outline" disabled>
                         <PencilIcon className="mr-2 h-4 w-4" />
-                        <Skeleton className="h-4 w-8" />{" "}
-                        {/* Edit Text Skeleton */}
+                        <Skeleton className="h-4 w-8" />
                     </Button>
+
+                    {/* Dropdown Menu Button Skeleton */}
                     <Button variant="ghost" size="icon" disabled>
                         <MoreVertical className="h-4 w-4" />
                     </Button>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

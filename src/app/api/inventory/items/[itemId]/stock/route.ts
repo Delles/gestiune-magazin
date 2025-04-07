@@ -51,7 +51,7 @@ export async function POST(
 
         // Use validated data
         const {
-            quantity,
+            quantity = 0, // Default to 0 if undefined
             transactionType,
             reason,
             date,
@@ -60,6 +60,15 @@ export async function POST(
             totalPrice, // Calculated or entered
             referenceNumber,
         } = validationResult.data;
+
+        // Ensure quantity is a number for calculations
+        const adjustmentQuantity = Number(quantity);
+        if (isNaN(adjustmentQuantity) || adjustmentQuantity <= 0) {
+            return createErrorResponse(
+                "Invalid quantity. Must be a positive number.",
+                400
+            );
+        }
 
         const supabase = await createRouteHandlerSupabaseClient();
         const {
@@ -90,7 +99,7 @@ export async function POST(
                 "record_item_purchase",
                 {
                     p_item_id: itemId,
-                    p_quantity_added: quantity, // Function expects positive quantity
+                    p_quantity_added: adjustmentQuantity, // Function expects positive quantity
                     p_purchase_price: purchasePrice,
                     p_user_id: userId,
                     p_transaction_type: transactionType as TransactionType, // Cast to TransactionType
@@ -188,17 +197,17 @@ export async function POST(
             ].includes(transactionType);
 
             if (isIncrease) {
-                newQuantity = currentStock + quantity;
-                quantityChange = quantity;
+                newQuantity = currentStock + adjustmentQuantity;
+                quantityChange = adjustmentQuantity;
             } else if (isDecrease) {
-                if (currentStock < quantity) {
+                if (currentStock < adjustmentQuantity) {
                     return createErrorResponse(
                         "Not enough stock available for decrease",
                         400
                     );
                 }
-                newQuantity = currentStock - quantity;
-                quantityChange = -quantity;
+                newQuantity = currentStock - adjustmentQuantity;
+                quantityChange = -adjustmentQuantity;
             } else {
                 // Should not happen if validation passed
                 return createErrorResponse(
@@ -239,15 +248,17 @@ export async function POST(
                     transaction_type: transactionType,
                     quantity_change: quantityChange,
                     reason: reason || null,
-                    // Log price associated *with this transaction* if relevant (e.g., sale price)
-                    // Does not update item's avg/last purchase price.
-                    purchase_price: null, // Not a purchase/return
+                    // Log price associated *with this transaction* if relevant
+                    // For write-offs (damaged transactions), use purchasePrice to track the cost value lost
+                    purchase_price:
+                        transactionType === "damaged" && purchasePrice !== null
+                            ? purchasePrice
+                            : null, // For write-offs, store the value lost in purchase_price
                     selling_price:
-                        isDecrease && sellingPrice !== null
+                        transactionType === "sale" && sellingPrice !== null
                             ? sellingPrice
-                            : null,
-                    total_price:
-                        isDecrease && totalPrice !== null ? totalPrice : null,
+                            : null, // Only for sales
+                    total_price: totalPrice !== null ? totalPrice : null, // Track total for all transactions that provide it
                     reference_number: referenceNumber || null,
                     created_at:
                         date instanceof Date

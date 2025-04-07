@@ -39,6 +39,7 @@ import {
     FileDown, // For Export
     View, // For Columns
     FilterX, // For Clear Filters
+    Settings2Icon, // For Density Toggle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -80,6 +81,8 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    DropdownMenuRadioGroup, // Added
+    DropdownMenuRadioItem, // Added
 } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar"; // Added
 import { format, isWithinInterval } from "date-fns"; // Added date-fns functions
@@ -120,6 +123,9 @@ const escapeCsvValue = (value: unknown): string => {
     return stringValue;
 };
 
+// Define density type
+type Density = "compact" | "normal" | "comfortable";
+
 interface StockTransactionHistoryProps {
     itemId: string;
     itemName: string;
@@ -140,6 +146,10 @@ export default function StockTransactionHistory({
     );
     const [referenceFilter, setReferenceFilter] = useState("");
     const debouncedReferenceFilter = useDebounce(referenceFilter, 300);
+
+    // --- Add Density State ---
+    const [density, setDensity] = useState<Density>("normal");
+
     const {
         data: transactions = [],
         isLoading,
@@ -147,9 +157,12 @@ export default function StockTransactionHistory({
         error,
         refetch,
     } = useQuery<StockTransaction[], unknown>({
+        // Keep error as unknown
         queryKey: ["stockTransactions", itemId],
         queryFn: () => getStockTransactions(itemId),
+        // Consider adding placeholderData or staleTime if needed
     });
+
     const filteredTransactions = useMemo(() => {
         let filtered = [...transactions];
         if (dateRange?.from && dateRange?.to) {
@@ -193,6 +206,7 @@ export default function StockTransactionHistory({
         }
         return filtered;
     }, [transactions, dateRange, debouncedReferenceFilter]);
+
     const columns: ColumnDef<StockTransaction>[] = useMemo(
         () => [
             {
@@ -450,6 +464,7 @@ export default function StockTransactionHistory({
         ],
         []
     );
+
     const activeFilters = useMemo(() => {
         const typeFilter = columnFilters.find(
             (f) => f.id === "transaction_type"
@@ -461,6 +476,7 @@ export default function StockTransactionHistory({
             dateRange !== undefined
         );
     }, [globalFilter, columnFilters, dateRange, referenceFilter]);
+
     const table = useReactTable({
         data: filteredTransactions,
         columns,
@@ -574,6 +590,7 @@ export default function StockTransactionHistory({
             setColumnFilters(otherFilters);
         }
     };
+
     const clearAllFilters = () => {
         setColumnFilters([]);
         setGlobalFilter("");
@@ -621,10 +638,13 @@ export default function StockTransactionHistory({
     }
 
     if (isError) {
-        const errorMessage =
-            error instanceof Error
-                ? error.message
-                : "An unknown error occurred";
+        // More defensive error message extraction
+        let errorMessage = "An unknown error occurred";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        } else if (typeof error === "string") {
+            errorMessage = error;
+        }
 
         return (
             <Card className="shadow-sm border-destructive/50">
@@ -905,6 +925,44 @@ export default function StockTransactionHistory({
                                         size="sm"
                                         className="h-9 w-full sm:w-auto ml-auto"
                                     >
+                                        <Settings2Icon className="mr-2 h-4 w-4" />
+                                        Density
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="w-48"
+                                >
+                                    <DropdownMenuLabel>
+                                        Table Density
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuRadioGroup
+                                        value={density}
+                                        onValueChange={(value) =>
+                                            setDensity(value as Density)
+                                        }
+                                    >
+                                        <DropdownMenuRadioItem value="compact">
+                                            Compact
+                                        </DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="normal">
+                                            Normal
+                                        </DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="comfortable">
+                                            Comfortable
+                                        </DropdownMenuRadioItem>
+                                    </DropdownMenuRadioGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 w-full sm:w-auto"
+                                    >
                                         <View className="mr-2 h-4 w-4" />
                                         Columns
                                     </Button>
@@ -995,7 +1053,20 @@ export default function StockTransactionHistory({
                                         {headerGroup.headers.map((header) => (
                                             <TableHead
                                                 key={header.id}
-                                                className="px-3 py-2 text-xs h-auto font-semibold text-muted-foreground uppercase tracking-wider"
+                                                className={cn(
+                                                    "px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider", // Base classes
+                                                    {
+                                                        "py-1 h-9":
+                                                            density ===
+                                                            "compact",
+                                                        "py-2 h-auto":
+                                                            density ===
+                                                            "normal",
+                                                        "py-3 h-11":
+                                                            density ===
+                                                            "comfortable",
+                                                    }
+                                                )}
                                             >
                                                 {header.isPlaceholder
                                                     ? null
@@ -1033,8 +1104,7 @@ export default function StockTransactionHistory({
                                                         Error Loading History
                                                     </p>
                                                     <p className="text-sm">
-                                                        {error?.message ||
-                                                            "Unknown error"}
+                                                        {errorMessage}
                                                     </p>
                                                 </div>
                                                 <Button
@@ -1056,14 +1126,34 @@ export default function StockTransactionHistory({
                                                 row.getIsSelected() &&
                                                 "selected"
                                             }
-                                            className="hover:bg-muted/30"
+                                            className={cn(
+                                                "hover:bg-muted/30", // Existing hover
+                                                // Highlight initial stock rows
+                                                row.original
+                                                    .transaction_type ===
+                                                    "initial-stock" &&
+                                                    "bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100/80 dark:hover:bg-blue-950/50"
+                                            )}
                                         >
                                             {row
                                                 .getVisibleCells()
                                                 .map((cell) => (
                                                     <TableCell
                                                         key={cell.id}
-                                                        className="px-3 py-2.5 align-top"
+                                                        className={cn(
+                                                            "px-3 align-top", // Base classes
+                                                            {
+                                                                "py-1.5 text-xs":
+                                                                    density ===
+                                                                    "compact",
+                                                                "py-2.5 text-sm":
+                                                                    density ===
+                                                                    "normal",
+                                                                "py-3.5 text-sm":
+                                                                    density ===
+                                                                    "comfortable",
+                                                            }
+                                                        )}
                                                     >
                                                         {flexRender(
                                                             cell.column

@@ -14,13 +14,20 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeftIcon, Package, PencilIcon, MoreVertical } from "lucide-react";
+import { ArrowLeftIcon, MoreVertical, Package, PencilIcon } from "lucide-react";
 import EditSheetWrapper from "./edit-sheet-wrapper"; // Assuming it's in the same directory
 import { Tables } from "@/types/supabase"; // Assuming you have generated types
 import { getCategoryIcon } from "@/lib/category-icons"; // Import the utility
 import { cn } from "@/lib/utils"; // Ensure cn is imported
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Refined type - removed sku as it's not in the base type based on lint error
 type ItemWithCategory = Pick<
@@ -38,11 +45,13 @@ type ItemWithCategory = Pick<
 interface ItemDetailHeaderProps {
     item: ItemWithCategory;
     itemId: string;
+    onDeleteClick: () => void;
 }
 
 export default function ItemDetailHeader({
     item,
     itemId,
+    onDeleteClick,
 }: ItemDetailHeaderProps) {
     // Get the dynamic category icon component
     const CategoryIcon = getCategoryIcon(item.categories?.name);
@@ -59,12 +68,6 @@ export default function ItemDetailHeader({
         <div
             className={cn(
                 "sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-4 mb-6 border-b"
-                // Add top padding to account for potential overlap if main layout header is also sticky
-                // Adjust top-0 if needed based on main app layout (e.g., top-14, top-16)
-                // Added backdrop-blur for effect
-                // Added pt-4 to prevent content jump when sticking
-                // Added border-b to maintain visual separation when sticky
-                // mb-6 remains to space out from content below when not sticky
             )}
         >
             {/* Back Navigation - add bottom margin if needed */}
@@ -77,7 +80,7 @@ export default function ItemDetailHeader({
                 </Button>
             </div>
 
-            {/* Item Header Content - Remove existing border-b and mb-6 from here */}
+            {/* Item Header Content */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 {/* Left Side: Info */}
                 <div className="flex-1 space-y-2 min-w-0">
@@ -122,54 +125,71 @@ export default function ItemDetailHeader({
 
                 {/* Right Side: Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0 mt-4 md:mt-0">
-                    {/* TODO: Implement Adjust Stock Modal/Functionality */}
-                    <Button variant="secondary" disabled>
-                        Adjust Stock
-                    </Button>
+                    {/* Existing Edit Sheet Trigger with Tooltip */}
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Sheet>
+                                    <SheetTrigger asChild>
+                                        <Button variant="outline">
+                                            <PencilIcon className="mr-2 h-4 w-4" />{" "}
+                                            Edit
+                                        </Button>
+                                    </SheetTrigger>
+                                    <SheetContent className="sm:max-w-xl w-[90vw] overflow-y-auto p-0">
+                                        <SheetHeader className="p-6 pb-4">
+                                            <SheetTitle>
+                                                Edit: {item.item_name}
+                                            </SheetTitle>
+                                            <SheetDescription>
+                                                Update item details. Unit and
+                                                stock quantity cannot be changed
+                                                here. Use stock adjustments for
+                                                quantity changes.
+                                            </SheetDescription>
+                                        </SheetHeader>
+                                        <Separator />
+                                        <div className="p-6">
+                                            <EditSheetWrapper itemId={itemId} />
+                                        </div>
+                                    </SheetContent>
+                                </Sheet>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Edit item details</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
 
-                    {/* Existing Edit Sheet Trigger */}
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button variant="outline">
-                                <PencilIcon className="mr-2 h-4 w-4" /> Edit
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent className="sm:max-w-xl w-[90vw] overflow-y-auto p-0">
-                            <SheetHeader className="p-6 pb-4">
-                                <SheetTitle>Edit: {item.item_name}</SheetTitle>
-                                <SheetDescription>
-                                    Update item details. Unit and stock quantity
-                                    cannot be changed here. Use stock
-                                    adjustments for quantity changes.
-                                </SheetDescription>
-                            </SheetHeader>
-                            <Separator />
-                            <div className="p-6">
-                                <EditSheetWrapper itemId={itemId} />
-                            </div>
-                        </SheetContent>
-                    </Sheet>
-
-                    {/* More Actions Dropdown */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                                <span className="sr-only">More actions</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem disabled>
-                                View History
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                disabled
-                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                            >
-                                Delete Item
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    {/* DropdownMenu with Tooltip */}
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem disabled>
+                                            View History
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={onDeleteClick}
+                                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                        >
+                                            Delete Item
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>More actions</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
             </div>
         </div> // End of sticky wrapper div
