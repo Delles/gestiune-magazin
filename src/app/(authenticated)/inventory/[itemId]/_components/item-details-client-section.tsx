@@ -98,7 +98,7 @@ export function ItemDetailsClientSection({
             }
         },
         onSuccess: () => {
-            toast.success("Item deleted successfully.");
+            toast.success("Articol șters cu succes.");
             // Invalidate cache for the list view
             queryClient.invalidateQueries({
                 queryKey: ["inventoryItems", "list"],
@@ -108,7 +108,7 @@ export function ItemDetailsClientSection({
             router.push("/inventory"); // Redirect to inventory list
         },
         onError: (error) => {
-            toast.error(`Failed to delete item: ${error.message}`);
+            toast.error(`Eroare la ștergerea articolului: ${error.message}`);
             setIsDeleteDialogOpen(false); // Close dialog on error
         },
     });
@@ -161,15 +161,15 @@ export function ItemDetailsClientSection({
                         "border-b"
                     )}
                 >
-                    <TabsTrigger value="details">Details</TabsTrigger>
-                    <TabsTrigger value="history">History</TabsTrigger>
+                    <TabsTrigger value="details">Detalii</TabsTrigger>
+                    <TabsTrigger value="history">Istoric</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="space-y-6">
                     <div className="space-y-4">
-                        <h3 className="text-lg font-medium">Properties</h3>
+                        <h3 className="text-lg font-medium">Proprietăți</h3>
                         <p className="text-sm text-muted-foreground pl-2">
-                            {item.description || "No description provided."}
+                            {item.description || "Nicio descriere introdusă."}
                         </p>
                     </div>
 
@@ -178,43 +178,45 @@ export function ItemDetailsClientSection({
                         <dl className="space-y-3 border p-4 rounded-lg bg-muted/40">
                             <div className="flex justify-between items-center text-sm">
                                 <dt className="text-muted-foreground">
-                                    Category
+                                    Categorie
                                 </dt>
                                 <dd>
                                     <Badge variant="outline">
                                         {item.categories?.name ??
-                                            "Uncategorized"}
+                                            "Necategorizat"}
                                     </Badge>
                                 </dd>
                             </div>
                             <Separator />
                             <div className="flex justify-between items-center text-sm">
-                                <dt className="text-muted-foreground">Unit</dt>
+                                <dt className="text-muted-foreground">
+                                    Unitate de măsură
+                                </dt>
                                 <dd>{item.unit}</dd>
                             </div>
                             <Separator />
                             <div className="flex justify-between items-center text-sm">
                                 <dt className="text-muted-foreground">
-                                    Reorder Point
+                                    Punct de reaprovizionare
                                 </dt>
                                 <dd>
                                     {formatNullableNumber(
                                         item.reorder_point,
-                                        ` ${item.unit}(s)`
+                                        ` ${item.unit}(i)`
                                     )}
                                 </dd>
                             </div>
                             <Separator />
                             <div className="flex justify-between items-center text-sm">
                                 <dt className="text-muted-foreground">
-                                    Created At
+                                    Creat la
                                 </dt>
                                 <dd>{formatDate(item.created_at)}</dd>
                             </div>
                             <Separator />
                             <div className="flex justify-between items-center text-sm">
                                 <dt className="text-muted-foreground">
-                                    Last Updated
+                                    Ultima actualizare
                                 </dt>
                                 <dd>{formatDate(item.updated_at)}</dd>
                             </div>
@@ -240,11 +242,11 @@ export function ItemDetailsClientSection({
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Confirm Deletion</DialogTitle>
+                        <DialogTitle>Confirmă Ștergerea</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete the item &quot;
-                            {item.item_name}&quot;? This action cannot be
-                            undone.
+                            Ești sigur că vrei să ștergi articolul &quot;
+                            {item.item_name}&quot;? Această acțiune nu poate fi
+                            anulată.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -253,7 +255,7 @@ export function ItemDetailsClientSection({
                                 variant="outline"
                                 disabled={deleteMutation.isPending}
                             >
-                                Cancel
+                                Anulează
                             </Button>
                         </DialogClose>
                         <Button
@@ -262,8 +264,8 @@ export function ItemDetailsClientSection({
                             disabled={deleteMutation.isPending}
                         >
                             {deleteMutation.isPending
-                                ? "Deleting..."
-                                : "Confirm Delete"}
+                                ? "Ștergere..."
+                                : "Confirmă Ștergerea"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

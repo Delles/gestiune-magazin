@@ -11,16 +11,17 @@ import {
 } from "@/components/ui/popover";
 import {
     PencilIcon,
-    ArrowUpIcon,
-    ArrowDownIcon,
     MinusIcon,
     PlusIcon,
+    AlertTriangleIcon,
+    TrendingUpIcon,
+    TrendingDownIcon,
+    InfoIcon,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateItemReorderPoint } from "../../_data/api";
 import { toast } from "sonner";
 import AdjustReorderPointPopoverContent from "./AdjustReorderPointPopoverContent";
-import { Badge } from "@/components/ui/badge";
 import {
     Tooltip,
     TooltipContent,
@@ -30,15 +31,18 @@ import {
 import IncreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/IncreaseStockForm";
 import DecreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/DecreaseStockForm";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 // Explicit props interface for MetricDisplayCard
 interface MetricDisplayCardProps {
     title: string;
-    value: string | number | React.ReactNode;
-    description?: string | React.ReactNode;
+    value: React.ReactNode;
+    description?: React.ReactNode;
     footer?: React.ReactNode;
-    children?: React.ReactNode;
+    icon?: React.ReactNode;
+    className?: string;
+    titleClassName?: string;
+    valueClassName?: string;
 }
 
 // Helper component for consistent metric display using React.FC
@@ -47,24 +51,39 @@ const MetricDisplayCard: React.FC<MetricDisplayCardProps> = ({
     value,
     description,
     footer,
-    children,
+    icon,
+    className,
+    titleClassName,
+    valueClassName,
 }) => (
-    <div className="border rounded-lg p-4 flex flex-col justify-between bg-muted/40 h-full min-h-[100px]">
+    <div
+        className={cn(
+            "border rounded-lg p-4 flex flex-col justify-between bg-muted/30 hover:bg-muted/50 transition-colors h-full min-h-[110px]",
+            className
+        )}
+    >
         <div>
-            <div className="flex justify-between items-start gap-2">
-                <p className="text-sm font-medium text-muted-foreground">
+            <div className="flex justify-between items-start gap-2 mb-1">
+                <p
+                    className={cn(
+                        "text-sm font-medium text-muted-foreground",
+                        titleClassName
+                    )}
+                >
                     {title}
                 </p>
-                {children}
+                {icon}
             </div>
-            <p className="text-xl font-semibold truncate">{value}</p>
+            <p className={cn("text-xl font-semibold truncate", valueClassName)}>
+                {value}
+            </p>
             {description && (
                 <p className="text-xs text-muted-foreground mt-1">
                     {description}
                 </p>
             )}
         </div>
-        {footer && <div className="mt-2">{footer}</div>}
+        {footer && <div className="mt-2 text-xs">{footer}</div>}
     </div>
 );
 
@@ -93,7 +112,7 @@ export function PrimaryMetrics({
     secondLastPurchasePrice,
     className,
 }: PrimaryMetricsProps) {
-    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+    const [isReorderPopoverOpen, setIsReorderPopoverOpen] = useState(false);
     const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
     const [isReduceStockDialogOpen, setIsReduceStockDialogOpen] =
         useState(false);
@@ -117,18 +136,17 @@ export function PrimaryMetrics({
             queryClient.invalidateQueries({
                 queryKey: ["stockTransactions", itemId],
             });
-            setIsPopoverOpen(false);
+            setIsReorderPopoverOpen(false);
         },
         onError: (error) => {
             toast.error(
-                `Actualizarea punctului de reaprovizionare a eșuat: ${error.message}`
+                `Nu s-a putut actualiza punctul de reaprovizionare: ${error.message}`
             );
         },
     });
 
     const handleSaveReorderPoint = (data: { reorder_point: number | null }) => {
         mutation.mutate({ id: itemId, reorder_point: data.reorder_point });
-        setIsPopoverOpen(false);
     };
 
     const handleStockAdjustmentSuccess = () => {
@@ -147,112 +165,82 @@ export function PrimaryMetrics({
         stock_quantity <= reorder_point &&
         stock_quantity > 0;
     const isOutOfStock = stock_quantity <= 0;
-    const indicatorColor = isOutOfStock
+
+    const stockPercentage =
+        reorder_point !== null && reorder_point > 0
+            ? (stock_quantity / reorder_point) * 100 // Keep the actual percentage, can be > 100
+            : null;
+
+    // Value for the progress bar visual fill (capped at 100)
+    const progressBarValue =
+        stockPercentage !== null ? Math.min(100, stockPercentage) : 0;
+
+    const isOverStocked = stockPercentage !== null && stockPercentage > 100;
+
+    const stockStatus = isOutOfStock
+        ? {
+              text: "Fără stoc",
+              color: "bg-destructive",
+              iconColor: "text-destructive",
+          }
+        : isLowStock
+        ? {
+              text: "Stoc scăzut",
+              color: "bg-amber-500",
+              iconColor: "text-amber-500",
+          }
+        : isOverStocked
+        ? {
+              text: "Peste limita de reaprovizionare",
+              color: "bg-blue-500",
+              iconColor: "text-blue-500",
+          } // Added OverStocked state
+        : {
+              text: "În stoc",
+              color: "bg-emerald-500",
+              iconColor: "text-emerald-500",
+          };
+
+    // Determine progress bar color based on detailed status
+    const progressBarColor = isOutOfStock
         ? "bg-destructive"
         : isLowStock
-        ? "bg-yellow-500"
-        : "bg-emerald-500";
-    const statusText = isOutOfStock
-        ? "Stoc epuizat"
-        : isLowStock
-        ? "Stoc scăzut"
-        : "În stoc";
+        ? "bg-amber-500"
+        : isOverStocked
+        ? "bg-blue-500" // Use blue for over 100%
+        : "bg-emerald-500"; // Default green for in stock (<= 100%)
 
-    const estimatedStockValue = stock_quantity * (average_purchase_price ?? 0);
-    const estimatedProfitMargin =
-        selling_price && average_purchase_price && selling_price !== 0
-            ? ((selling_price - average_purchase_price) / selling_price) * 100
-            : 0;
-
-    const formatCurrency = (value: number | null) => {
+    const formatCurrency = (value: number | null | undefined) => {
         if (value === null || value === undefined) return "N/A";
         return new Intl.NumberFormat("ro-RO", {
             style: "currency",
             currency: "RON",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
         }).format(value);
     };
 
-    const formatPercentage = (value: number | null) => {
+    const formatPercentage = (value: number | null | undefined) => {
         if (value === null || value === undefined) return "N/A";
         return `${value.toFixed(1)}%`;
     };
 
-    const formatNullableNumber = (
+    const formatNumber = (
         value: number | null | undefined,
         suffix: string = ""
     ) => {
         if (value === null || value === undefined) return "N/A";
-        return value + suffix;
+        return `${value}${suffix}`;
     };
-
-    let trendIndicator: React.ReactNode = null;
-    if (
-        last_purchase_price !== null &&
-        average_purchase_price !== null &&
-        average_purchase_price !== 0
-    ) {
-        const difference = last_purchase_price - average_purchase_price;
-        const percentageDifference =
-            (difference / average_purchase_price) * 100;
-
-        let TrendIcon = MinusIcon;
-        let colorClass = "bg-muted text-muted-foreground";
-        let text = "Stabil";
-
-        if (percentageDifference > 1) {
-            TrendIcon = ArrowUpIcon;
-            colorClass = "bg-destructive/10 text-destructive";
-            text = `${percentageDifference.toFixed(1)}% mai mare`;
-        } else if (percentageDifference < -1) {
-            TrendIcon = ArrowDownIcon;
-            colorClass = "bg-green-500/10 text-green-600";
-            text = `${Math.abs(percentageDifference).toFixed(1)}% mai mic`;
-        }
-
-        trendIndicator = (
-            <Badge
-                variant="outline"
-                className={cn("text-xs font-normal py-0.5 px-1.5", colorClass)}
-            >
-                <TrendIcon className="h-3 w-3 mr-1" />
-                {text}
-            </Badge>
-        );
-    }
-
-    let lastVsAvgPercentageChangeText: string | null = null;
-    if (
-        last_purchase_price !== null &&
-        average_purchase_price !== null &&
-        average_purchase_price !== 0
-    ) {
-        const percentageDiff =
-            ((last_purchase_price - average_purchase_price) /
-                average_purchase_price) *
-            100;
-        if (Math.abs(percentageDiff) >= 0.1) {
-            lastVsAvgPercentageChangeText = `${
-                percentageDiff > 0 ? "+" : ""
-            }${percentageDiff.toFixed(1)}% vs Avg`;
-        }
-    }
-
-    let lastVsSecondLastDiffText: string | null = null;
-    if (last_purchase_price !== null && secondLastPurchasePrice !== null) {
-        const diff = last_purchase_price - secondLastPurchasePrice;
-        if (Math.abs(diff) >= 0.01) {
-            lastVsSecondLastDiffText = `${diff > 0 ? "+" : ""}${formatCurrency(
-                diff
-            )} vs Prev`;
-        }
-    }
 
     const sellPrice = selling_price ?? 0;
     const avgCost = average_purchase_price ?? 0;
+    const lastCost = last_purchase_price ?? 0;
+
+    const estimatedStockValue = stock_quantity * avgCost;
 
     const profitMargin =
         sellPrice > 0 ? ((sellPrice - avgCost) / sellPrice) * 100 : 0;
-
     const markup =
         avgCost > 0
             ? ((sellPrice - avgCost) / avgCost) * 100
@@ -260,33 +248,141 @@ export function PrimaryMetrics({
             ? Infinity
             : 0;
 
+    let lastVsAvgDiffPercent: number | null = null;
+    if (avgCost !== 0) {
+        lastVsAvgDiffPercent = ((lastCost - avgCost) / avgCost) * 100;
+    }
+
+    let lastVsSecondLastDiffValue: number | null = null;
+    if (last_purchase_price !== null && secondLastPurchasePrice !== null) {
+        lastVsSecondLastDiffValue =
+            last_purchase_price - secondLastPurchasePrice;
+    }
+
+    const renderTrend = (
+        value: number | null,
+        prefix: string = "",
+        suffix: string = ""
+    ) => {
+        if (value === null || Math.abs(value) < 0.01) {
+            return <span className="text-muted-foreground">-</span>;
+        }
+        const isPositive = value > 0;
+        const color = isPositive ? "text-red-500" : "text-green-500";
+        const Icon = isPositive ? TrendingUpIcon : TrendingDownIcon;
+
+        return (
+            <span
+                className={cn(
+                    "flex items-center gap-1 text-xs font-medium",
+                    color
+                )}
+            >
+                <Icon className="h-3.5 w-3.5" />
+                {`${prefix}${isPositive ? "+" : ""}${value.toFixed(
+                    1
+                )}${suffix}`}
+            </span>
+        );
+    };
+
+    const renderCurrencyTrend = (value: number | null, prefix: string = "") => {
+        if (value === null || Math.abs(value) < 0.01) {
+            return <span className="text-muted-foreground">-</span>;
+        }
+        const isPositive = value > 0;
+        const color = isPositive ? "text-red-500" : "text-green-500";
+        const Icon = isPositive ? TrendingUpIcon : TrendingDownIcon;
+        return (
+            <span
+                className={cn(
+                    "flex items-center gap-1 text-xs font-medium",
+                    color
+                )}
+            >
+                <Icon className="h-3.5 w-3.5" />
+                {`${prefix}${isPositive ? "+" : ""}${formatCurrency(value)}`}
+            </span>
+        );
+    };
+
     return (
         <Card className={cn("w-full", className)}>
             <CardHeader>
-                <CardTitle>Indicatori Primari</CardTitle>
+                <CardTitle className="text-xl font-semibold">
+                    Indicatori Primari
+                </CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 items-start">
-                    <div className="flex flex-col items-center gap-4 p-4 border rounded-lg bg-muted/40">
-                        <div
-                            className={cn(
-                                "w-16 h-16 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg",
-                                indicatorColor
-                            )}
-                        >
-                            {stock_quantity}
-                        </div>
-
-                        <div className="text-center">
-                            <span className="text-xs text-muted-foreground">
-                                {statusText}
-                            </span>
-                            <p className="text-sm text-muted-foreground">
-                                {unit}(s)
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                    <div className="lg:col-span-1 bg-muted/30 border rounded-lg overflow-hidden flex flex-col p-4">
+                        <div className="flex flex-col items-center text-center mb-10 mt-4">
+                            <div
+                                className={cn(
+                                    "w-16 h-16 mb-2 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg flex-shrink-0",
+                                    stockStatus.color
+                                )}
+                            >
+                                {stock_quantity}
+                            </div>
+                            <p className="text-sm font-semibold mb-0.5">
+                                {stockStatus.text}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {unit}(i) în stoc
                             </p>
                         </div>
 
-                        <div className="flex gap-2 w-full justify-center">
+                        <div className="px-1 mb-10 mt-8">
+                            {stockPercentage !== null &&
+                                reorder_point !== null && (
+                                    <>
+                                        <div className="flex justify-between items-center text-xs text-muted-foreground mb-1">
+                                            <span>Nivelul stocului</span>
+                                            <span>
+                                                {stockPercentage.toFixed(0)}%
+                                            </span>
+                                        </div>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger className="w-full">
+                                                    <Progress
+                                                        value={progressBarValue}
+                                                        className={cn(
+                                                            "h-2 w-full",
+                                                            progressBarColor
+                                                        )}
+                                                    />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>
+                                                        {stock_quantity} /{" "}
+                                                        {reorder_point} {unit}
+                                                        (i)
+                                                    </p>
+                                                    {isOverStocked && (
+                                                        <p className="text-blue-500">
+                                                            (Peste limita de
+                                                            reaprovizionare)
+                                                        </p>
+                                                    )}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        <p className="text-xs text-muted-foreground mt-1.5 text-center">
+                                            Punct de reaprovizionare:{" "}
+                                            {reorder_point} {unit}(i)
+                                        </p>
+                                    </>
+                                )}
+                            {reorder_point === null && (
+                                <p className="text-xs text-muted-foreground text-center italic py-3">
+                                    Punctul de reaprovizionare nu este setat
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex justify-center gap-3 w-full mt-10">
                             <Dialog
                                 open={isAddStockDialogOpen}
                                 onOpenChange={setIsAddStockDialogOpen}
@@ -296,19 +392,20 @@ export function PrimaryMetrics({
                                         <TooltipTrigger asChild>
                                             <DialogTrigger asChild>
                                                 <Button
-                                                    size="icon"
+                                                    size="sm"
                                                     variant="outline"
-                                                    className="flex-1"
+                                                    className="text-xs h-8 px-4"
                                                 >
-                                                    <PlusIcon className="h-4 w-4" />
-                                                    <span className="sr-only">
-                                                        Add Stock
-                                                    </span>
+                                                    <PlusIcon className="h-3.5 w-3.5 mr-1.5" />
+                                                    Creștere
                                                 </Button>
                                             </DialogTrigger>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>Add Stock</p>
+                                            <p>
+                                                Adaugă stoc / Înregistrează
+                                                achiziția
+                                            </p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
@@ -318,23 +415,16 @@ export function PrimaryMetrics({
                                         e.preventDefault()
                                     }
                                 >
-                                    <DialogHeader className="sr-only">
-                                        <DialogTitle>Add Stock</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="flex-grow overflow-y-auto">
-                                        <IncreaseStockForm
-                                            itemId={itemId}
-                                            itemName={itemName}
-                                            unit={unit}
-                                            currentStock={stock_quantity}
-                                            onSuccess={
-                                                handleStockAdjustmentSuccess
-                                            }
-                                            onClose={() =>
-                                                setIsAddStockDialogOpen(false)
-                                            }
-                                        />
-                                    </div>
+                                    <IncreaseStockForm
+                                        itemId={itemId}
+                                        itemName={itemName}
+                                        unit={unit}
+                                        currentStock={stock_quantity}
+                                        onSuccess={handleStockAdjustmentSuccess}
+                                        onClose={() =>
+                                            setIsAddStockDialogOpen(false)
+                                        }
+                                    />
                                 </DialogContent>
                             </Dialog>
 
@@ -347,22 +437,23 @@ export function PrimaryMetrics({
                                         <TooltipTrigger asChild>
                                             <DialogTrigger asChild>
                                                 <Button
-                                                    size="icon"
+                                                    size="sm"
                                                     variant="outline"
-                                                    className="flex-1"
+                                                    className="text-xs h-8 px-4"
                                                     disabled={
                                                         stock_quantity <= 0
                                                     }
                                                 >
-                                                    <MinusIcon className="h-4 w-4" />
-                                                    <span className="sr-only">
-                                                        Reduce Stock
-                                                    </span>
+                                                    <MinusIcon className="h-3.5 w-3.5 mr-1.5" />
+                                                    Reducere
                                                 </Button>
                                             </DialogTrigger>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>Reduce Stock</p>
+                                            <p>
+                                                Reduce stocul / Înregistrează
+                                                vânzarea/utilizarea
+                                            </p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
@@ -372,100 +463,101 @@ export function PrimaryMetrics({
                                         e.preventDefault()
                                     }
                                 >
-                                    <DialogHeader className="sr-only">
-                                        <DialogTitle>Reduce Stock</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="flex-grow overflow-y-auto">
-                                        <DecreaseStockForm
-                                            itemId={itemId}
-                                            itemName={itemName}
-                                            unit={unit}
-                                            currentStock={stock_quantity}
-                                            averagePurchasePrice={
-                                                average_purchase_price
-                                            }
-                                            onSuccess={
-                                                handleStockAdjustmentSuccess
-                                            }
-                                            onClose={() =>
-                                                setIsReduceStockDialogOpen(
-                                                    false
-                                                )
-                                            }
-                                        />
-                                    </div>
+                                    <DecreaseStockForm
+                                        itemId={itemId}
+                                        itemName={itemName}
+                                        unit={unit}
+                                        currentStock={stock_quantity}
+                                        averagePurchasePrice={
+                                            average_purchase_price
+                                        }
+                                        onSuccess={handleStockAdjustmentSuccess}
+                                        onClose={() =>
+                                            setIsReduceStockDialogOpen(false)
+                                        }
+                                    />
                                 </DialogContent>
                             </Dialog>
                         </div>
                     </div>
 
-                    {/* Financial Metrics Grid */}
-                    <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <Popover
-                            open={isPopoverOpen}
-                            onOpenChange={setIsPopoverOpen}
+                            open={isReorderPopoverOpen}
+                            onOpenChange={setIsReorderPopoverOpen}
                         >
-                            <PopoverTrigger asChild>
-                                <div className="relative cursor-pointer hover:bg-muted/80 border rounded-lg p-4 flex flex-col justify-between bg-muted/40 h-full min-h-[100px]">
-                                    <div>
-                                        <div className="flex justify-between items-start gap-2">
-                                            <p className="text-sm font-medium text-muted-foreground">
-                                                Punct de reaprovizionare
-                                            </p>
-                                            <PencilIcon className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-colors" />
-                                        </div>
-                                        <p className="text-xl font-semibold truncate">
-                                            {formatNullableNumber(
-                                                reorder_point,
-                                                reorder_point !== null
-                                                    ? ` ${unit}(s)`
-                                                    : ""
-                                            )}
+                            <div className="border rounded-lg p-4 flex flex-col justify-between bg-muted/30 min-h-[110px] relative group">
+                                <div>
+                                    <div className="flex justify-between items-start gap-2 mb-1">
+                                        <p className="text-sm font-medium text-muted-foreground">
+                                            Punct de reaprovizionare
                                         </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Nivelul stocului pentru a declanșa
-                                            reaprovizionarea. Triggers reorder
-                                            below this level.
-                                        </p>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-foreground absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                aria-label="Edit reorder point"
+                                            >
+                                                <PencilIcon className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </PopoverTrigger>
                                     </div>
-                                    {reorder_point !== null && (
-                                        <div className="mt-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Diff to Current:{" "}
-                                                <span
-                                                    className={cn(
-                                                        "font-medium",
-                                                        stock_quantity -
-                                                            reorder_point <
-                                                            0
-                                                            ? "text-destructive"
-                                                            : "text-emerald-600"
-                                                    )}
-                                                >
-                                                    {stock_quantity -
-                                                        reorder_point >=
-                                                    0
-                                                        ? "+"
-                                                        : ""}
-                                                    {stock_quantity -
-                                                        reorder_point}{" "}
-                                                    {unit}(s)
+                                    <p className="text-xl font-semibold truncate">
+                                        {formatNumber(
+                                            reorder_point,
+                                            reorder_point !== null
+                                                ? ` ${unit}(i)`
+                                                : ""
+                                        )}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1 h-8">
+                                        Pragul pentru a declanșa
+                                        reaprovizionarea.
+                                    </p>
+                                </div>
+                                {reorder_point !== null && (
+                                    <div className="mt-2 text-xs">
+                                        {stock_quantity <= reorder_point ? (
+                                            <p
+                                                className={cn(
+                                                    "flex items-center gap-1 font-medium",
+                                                    stockStatus.iconColor
+                                                )}
+                                            >
+                                                <AlertTriangleIcon className="h-3.5 w-3.5" />
+                                                <span>
+                                                    {reorder_point -
+                                                        stock_quantity}{" "}
+                                                    {unit}(i) sub limită
                                                 </span>
                                             </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </PopoverTrigger>
+                                        ) : (
+                                            <p className="flex items-center gap-1 font-medium text-emerald-500">
+                                                <InfoIcon className="h-3.5 w-3.5" />
+                                                <span>
+                                                    {stock_quantity -
+                                                        reorder_point}{" "}
+                                                    {unit}(i) peste limită
+                                                </span>
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                             <PopoverContent
                                 className="p-0 w-auto"
                                 side="bottom"
+                                align="end"
                             >
-                                {isPopoverOpen && (
+                                {isReorderPopoverOpen && (
                                     <AdjustReorderPointPopoverContent
                                         initialValue={reorder_point}
                                         unit={unit}
                                         onSave={handleSaveReorderPoint}
-                                        onCancel={() => setIsPopoverOpen(false)}
+                                        onCancel={() =>
+                                            setIsReorderPopoverOpen(false)
+                                        }
                                         isLoading={mutation.isPending}
                                     />
                                 )}
@@ -475,59 +567,16 @@ export function PrimaryMetrics({
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="w-full">
-                                        <MetricDisplayCard
-                                            title="Preț de vânzare"
-                                            value={formatCurrency(
-                                                selling_price
-                                            )}
-                                            description="Prețul per unitate"
-                                        />
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Prețul la care se vinde acest articol</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="w-full">
-                                        <MetricDisplayCard
-                                            title="Cost mediu de achiziție"
-                                            value={formatCurrency(
-                                                average_purchase_price
-                                            )}
-                                            description={
-                                                lastVsAvgPercentageChangeText ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={cn(
-                                                            "text-xs font-normal py-0.5 px-1",
-                                                            lastVsAvgPercentageChangeText.startsWith(
-                                                                "+"
-                                                            )
-                                                                ? "text-destructive"
-                                                                : "text-green-600"
-                                                        )}
-                                                    >
-                                                        {
-                                                            lastVsAvgPercentageChangeText
-                                                        }
-                                                    </Badge>
-                                                ) : (
-                                                    "Costul mediu per unitate"
-                                                )
-                                            }
-                                        />
-                                    </div>
+                                    <MetricDisplayCard
+                                        title="Preț de vânzare"
+                                        value={formatCurrency(selling_price)}
+                                        description={`Preț per ${unit}`}
+                                    />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>
-                                        Costul mediu de achiziție al acestui
-                                        articol
+                                        Prețul la care este vândut acest
+                                        articol.
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
@@ -536,29 +585,19 @@ export function PrimaryMetrics({
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="w-full">
-                                        <MetricDisplayCard
-                                            title="Ultimul cost de achiziție"
-                                            value={formatCurrency(
-                                                last_purchase_price
-                                            )}
-                                            description={
-                                                lastVsSecondLastDiffText ? (
-                                                    <span className="text-xs font-normal">
-                                                        {
-                                                            lastVsSecondLastDiffText
-                                                        }
-                                                    </span>
-                                                ) : (
-                                                    "Cel mai recent cost per unitate"
-                                                )
-                                            }
-                                            footer={trendIndicator}
-                                        />
-                                    </div>
+                                    <MetricDisplayCard
+                                        title="Cost mediu de achiziție"
+                                        value={formatCurrency(
+                                            average_purchase_price
+                                        )}
+                                        description={`Cost mediu per ${unit}`}
+                                    />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>Costul ultimei achiziții</p>
+                                    <p>
+                                        Costul mediu ponderat de achiziție a
+                                        acestui articol.
+                                    </p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -566,15 +605,46 @@ export function PrimaryMetrics({
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="w-full">
-                                        <MetricDisplayCard
-                                            title="Valoarea estimată a stocului"
-                                            value={formatCurrency(
-                                                estimatedStockValue
-                                            )}
-                                            description="Pe baza costului mediu de achiziție"
-                                        />
-                                    </div>
+                                    <MetricDisplayCard
+                                        title="Ultimul cost de achiziție"
+                                        value={formatCurrency(
+                                            last_purchase_price
+                                        )}
+                                        description={`Cel mai recent cost per ${unit}`}
+                                        footer={
+                                            <div className="space-y-1">
+                                                {renderCurrencyTrend(
+                                                    lastVsSecondLastDiffValue,
+                                                    "vs Anterior: "
+                                                )}
+                                                {renderTrend(
+                                                    lastVsAvgDiffPercent,
+                                                    "vs Mediu: ",
+                                                    "%"
+                                                )}
+                                            </div>
+                                        }
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>
+                                        Costul din cea mai recentă tranzacție de
+                                        achiziție.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <MetricDisplayCard
+                                        title="Valoarea estimată a stocului"
+                                        value={formatCurrency(
+                                            estimatedStockValue
+                                        )}
+                                        description="Pe baza costului mediu de achiziție"
+                                    />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>
@@ -588,63 +658,64 @@ export function PrimaryMetrics({
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="w-full">
-                                        <MetricDisplayCard
-                                            title="Marja de profit estimată"
-                                            value={
-                                                <span
-                                                    className={
-                                                        estimatedProfitMargin >
-                                                        0
-                                                            ? "text-green-600"
-                                                            : estimatedProfitMargin <
-                                                              0
-                                                            ? "text-destructive"
-                                                            : ""
-                                                    }
-                                                >
-                                                    {formatPercentage(
-                                                        estimatedProfitMargin
-                                                    )}
-                                                </span>
-                                            }
-                                            description="Pe baza prețului actual de vânzare"
-                                        />
-                                    </div>
+                                    <MetricDisplayCard
+                                        title="Marja de profit"
+                                        value={
+                                            <span
+                                                className={cn(
+                                                    profitMargin > 0
+                                                        ? "text-green-500"
+                                                        : profitMargin < 0
+                                                        ? "text-red-500"
+                                                        : ""
+                                                )}
+                                            >
+                                                {formatPercentage(profitMargin)}
+                                            </span>
+                                        }
+                                        description="(Preț de vânzare - Cost mediu) / Preț de vânzare"
+                                    />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>
-                                        Procentul de profit: (Prețul de vânzare
-                                        - Costul mediu de achiziție) / Prețul de
-                                        vânzare
+                                        Procentajul din prețul de vânzare care
+                                        reprezintă profit.
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
 
-                        {/* START: Profit Margin Card */}
                         <TooltipProvider>
-                            <MetricDisplayCard
-                                title="Marja Profit (%)"
-                                value={formatPercentage(profitMargin)}
-                                description="(Vânzare - Cost Mediu) / Vânzare"
-                            />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <MetricDisplayCard
+                                        title="Adaos comercial"
+                                        value={
+                                            <span
+                                                className={cn(
+                                                    markup > 0
+                                                        ? "text-green-500"
+                                                        : markup < 0
+                                                        ? "text-red-500"
+                                                        : ""
+                                                )}
+                                            >
+                                                {markup === Infinity
+                                                    ? "∞"
+                                                    : formatPercentage(markup)}
+                                            </span>
+                                        }
+                                        description="(Preț de vânzare - Cost mediu) / Cost mediu"
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>
+                                        Creșterea procentuală de la cost la
+                                        prețul de vânzare.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
                         </TooltipProvider>
-                        {/* END: Profit Margin Card */}
-
-                        {/* START: Markup Card */}
-                        <TooltipProvider>
-                            <MetricDisplayCard
-                                title="Adaos Comercial (%)"
-                                value={
-                                    markup === Infinity
-                                        ? "∞"
-                                        : formatPercentage(markup)
-                                }
-                                description="(Vânzare - Cost Mediu) / Cost Mediu"
-                            />
-                        </TooltipProvider>
-                        {/* END: Markup Card */}
                     </div>
                 </div>
             </CardContent>

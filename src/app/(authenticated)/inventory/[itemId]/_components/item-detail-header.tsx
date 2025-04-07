@@ -64,14 +64,13 @@ export default function ItemDetailHeader({
     const isOutOfStock = item.stock_quantity <= 0;
 
     return (
-        // Wrap content in a div and apply sticky classes
         <div
             className={cn(
-                "sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-4 mb-6 border-b"
+                "sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-4 border-b"
             )}
         >
-            {/* Back Navigation - add bottom margin if needed */}
-            <div className="flex items-center space-x-2 mb-4">
+            {/* Back Navigation */}
+            <div className="flex items-center space-x-2 mb-6">
                 <Button variant="outline" size="sm" asChild>
                     <Link href="/inventory">
                         <ArrowLeftIcon className="mr-1 h-4 w-4" />
@@ -81,18 +80,20 @@ export default function ItemDetailHeader({
             </div>
 
             {/* Item Header Content */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 {/* Left Side: Info */}
                 <div className="flex-1 space-y-2 min-w-0">
                     {/* Title Row with Status Badges */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                        <div className="bg-muted p-2 rounded-lg flex-shrink-0">
                             <CategoryIcon
-                                className="h-6 w-6 text-muted-foreground flex-shrink-0"
+                                className="h-6 w-6 text-muted-foreground"
                                 aria-label={`${
                                     item.categories?.name ?? "Item"
                                 } category icon`}
                             />
+                        </div>
+                        <h1 className="text-2xl font-bold tracking-tight">
                             <span className="break-words">
                                 {item.item_name ?? "Item Name"}
                             </span>
@@ -102,16 +103,15 @@ export default function ItemDetailHeader({
                         )}
                         {isLowStock && !isOutOfStock && (
                             <Badge
-                                variant="secondary"
-                                className="bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-800"
+                                variant="outline"
+                                className="bg-amber-500/15 text-amber-600 border-amber-500/20 dark:bg-amber-600/10 dark:text-amber-400 dark:border-amber-600/20 font-medium"
                             >
                                 Low Stock
                             </Badge>
                         )}
                     </div>
-                    {/* Details Row - removed SKU */}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                        <Package className="h-4 w-4 flex-shrink-0" />
+                    {/* Details Row */}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap pl-11">
                         <Badge variant="outline">
                             {item.categories?.name ?? "Uncategorized"}
                         </Badge>
@@ -119,6 +119,7 @@ export default function ItemDetailHeader({
                             orientation="vertical"
                             className="h-4 mx-1"
                         />
+                        <Package className="h-4 w-4 flex-shrink-0" />
                         <span>Unit: {item.unit}</span>
                     </div>
                 </div>
@@ -192,6 +193,7 @@ export default function ItemDetailHeader({
                     </TooltipProvider>
                 </div>
             </div>
-        </div> // End of sticky wrapper div
+            <Separator className="mt-4 mb-6" />
+        </div>
     );
 }
