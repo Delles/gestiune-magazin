@@ -6,13 +6,6 @@ import { Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import {
     DropdownMenu,
@@ -27,13 +20,12 @@ import {
 import {
     Sheet,
     SheetContent,
-    SheetDescription,
     SheetHeader,
     SheetTitle,
+    SheetDescription,
     SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-    Filter,
     Search,
     X,
     XCircle,
@@ -48,6 +40,11 @@ import { InventoryItem, Category } from "../../types/types";
 import AddItemForm from "../forms/add-item-form";
 import { SortableHeader } from "./inventory-columns"; // Import SortableHeader
 import { cn } from "@/lib/utils"; // Import cn utility
+import {
+    InventoryFilterSidebar,
+    StockValueRangeFilter,
+    ReorderPointFilter,
+} from "./inventory-filter-sidebar";
 
 // --- Stock Status Options (Moved from columns, as filter UI is here) ---
 const stockStatuses = [
@@ -67,12 +64,12 @@ interface InventoryTableToolbarProps {
     globalFilter: string;
     setGlobalFilter: (value: string) => void;
     clearAllFilters: () => void;
-    hasActiveFilters: boolean;
-    activeFilterCount: number;
     isAddSheetOpen: boolean;
     setIsAddSheetOpen: (open: boolean) => void;
-    filterPopoverOpen: boolean;
-    setFilterPopoverOpen: (open: boolean) => void;
+    stockValueRange: StockValueRangeFilter;
+    reorderPointFilter: ReorderPointFilter;
+    handleStockValueRangeChange: (type: "min" | "max", value: string) => void;
+    handleReorderPointFilterChange: (checked: boolean) => void;
     handleCategoryFilterChange: (
         categoryId: string,
         checked: boolean | string
@@ -93,12 +90,12 @@ export function InventoryTableToolbar({
     globalFilter,
     setGlobalFilter,
     clearAllFilters,
-    hasActiveFilters,
-    activeFilterCount,
     isAddSheetOpen,
     setIsAddSheetOpen,
-    filterPopoverOpen,
-    setFilterPopoverOpen,
+    stockValueRange,
+    reorderPointFilter,
+    handleStockValueRangeChange,
+    handleReorderPointFilterChange,
     handleCategoryFilterChange,
     handleStockFilterChange,
     onExportCsv, // Destructure new prop
@@ -110,6 +107,14 @@ export function InventoryTableToolbar({
     const stockFilterColumn = table.getColumn("stock_quantity");
     const stockFilterValue =
         (stockFilterColumn?.getFilterValue() as string[]) ?? [];
+
+    // Calculate active filter count here
+    const activeFilterCount =
+        categoryFilterValue.length +
+        stockFilterValue.length +
+        (stockValueRange.min !== null || stockValueRange.max !== null ? 1 : 0) + // Add stock value range filter
+        (reorderPointFilter !== null ? 1 : 0) + // Add reorder point filter
+        (globalFilter ? 1 : 0); // Keep global filter check
 
     // Helper function to get header name for visibility toggle
     const getHeaderName = (column: Column<InventoryItem, unknown>): string => {
@@ -150,175 +155,43 @@ export function InventoryTableToolbar({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3">
             {/* Group 1 (Left/Center): Filters, Badges, Clear, Search */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                {/* Filter Popover Button */}
-                <Popover
-                    open={filterPopoverOpen}
-                    onOpenChange={setFilterPopoverOpen}
-                >
-                    <PopoverTrigger asChild>
+                {/* Filter Sheet Trigger Button */}
+                <Sheet>
+                    <SheetTrigger asChild>
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-9 transition-colors duration-150"
+                            className="h-9 transition-colors duration-150 relative"
                         >
-                            <Filter className="mr-2 h-4 w-4" /> Filter
+                            <ListFilter className="mr-2 h-4 w-4" /> Filter
                             {activeFilterCount > 0 && (
-                                <>
-                                    <Separator
-                                        orientation="vertical"
-                                        className="mx-2 h-4"
-                                    />
-                                    <Badge
-                                        variant="secondary"
-                                        className="rounded-sm px-1 font-normal"
-                                    >
-                                        {activeFilterCount}
-                                    </Badge>
-                                </>
+                                <Badge
+                                    variant="secondary"
+                                    className="absolute -top-2 -right-2 rounded-full px-1.5 py-0.5 text-xs font-semibold"
+                                >
+                                    {activeFilterCount}
+                                </Badge>
                             )}
                         </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-0" align="start">
-                        <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-                            {/* Category Filter */}
-                            <div>
-                                <h4 className="font-medium leading-none mb-2">
-                                    Category
-                                </h4>
-                                {categories.length > 0 ? (
-                                    categories.map((cat) => {
-                                        const filterValue =
-                                            (table
-                                                .getColumn("category_name")
-                                                ?.getFilterValue() as string[]) ??
-                                            [];
-                                        const facetedValues = table
-                                            .getColumn("category_name")
-                                            ?.getFacetedUniqueValues();
-                                        const count =
-                                            facetedValues?.get(cat.name) ?? 0;
-                                        return (
-                                            <div
-                                                key={cat.id}
-                                                className="flex items-center space-x-2"
-                                            >
-                                                <Checkbox
-                                                    id={`filter-cat-${cat.id}`}
-                                                    checked={filterValue.includes(
-                                                        cat.name
-                                                    )}
-                                                    onCheckedChange={(
-                                                        checked
-                                                    ) =>
-                                                        handleCategoryFilterChange(
-                                                            cat.id,
-                                                            checked
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        count === 0 &&
-                                                        !filterValue.includes(
-                                                            cat.name
-                                                        )
-                                                    }
-                                                />
-                                                <Label
-                                                    htmlFor={`filter-cat-${cat.id}`}
-                                                    className="text-sm font-normal cursor-pointer flex justify-between w-full"
-                                                >
-                                                    <span>{cat.name}</span>
-                                                    {count > 0 && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            ({count})
-                                                        </span>
-                                                    )}
-                                                </Label>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                        No categories found
-                                    </p>
-                                )}
-                            </div>
-                            <Separator />
-                            {/* Stock Status Filter */}
-                            <div>
-                                <h4 className="font-medium leading-none mb-2">
-                                    Stock Status
-                                </h4>
-                                {stockStatuses.map((status) => {
-                                    const filterValue =
-                                        (table
-                                            .getColumn("stock_quantity")
-                                            ?.getFilterValue() as string[]) ??
-                                        [];
-                                    const facetedValues = table
-                                        .getColumn("stock_quantity")
-                                        ?.getFacetedUniqueValues();
-                                    const count =
-                                        facetedValues?.get(status.value) ?? 0;
-                                    return (
-                                        <div
-                                            key={status.value}
-                                            className="flex items-center space-x-2"
-                                        >
-                                            <Checkbox
-                                                id={`filter-stock-${status.value}`}
-                                                checked={filterValue.includes(
-                                                    status.value
-                                                )}
-                                                onCheckedChange={(checked) =>
-                                                    handleStockFilterChange(
-                                                        status.value,
-                                                        checked
-                                                    )
-                                                }
-                                                disabled={
-                                                    count === 0 &&
-                                                    !filterValue.includes(
-                                                        status.value
-                                                    )
-                                                }
-                                            />
-                                            <Label
-                                                htmlFor={`filter-stock-${status.value}`}
-                                                className="text-sm font-normal cursor-pointer flex justify-between items-center w-full"
-                                            >
-                                                <span className="flex items-center gap-1.5">
-                                                    <status.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                                                    {status.label}
-                                                </span>
-                                                {count > 0 && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        ({count})
-                                                    </span>
-                                                )}
-                                            </Label>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        {/* Clear Button Inside Popover */}
-                        {hasActiveFilters && (
-                            <div className="p-4 pt-0 border-t">
-                                <Button
-                                    onClick={() => {
-                                        clearAllFilters();
-                                        setFilterPopoverOpen(false);
-                                    }}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full justify-start text-destructive hover:text-destructive"
-                                >
-                                    Clear All Filters
-                                </Button>
-                            </div>
-                        )}
-                    </PopoverContent>
-                </Popover>
+                    </SheetTrigger>
+                    <InventoryFilterSidebar
+                        categories={categories}
+                        categoryFilterValue={categoryFilterValue}
+                        stockFilterValue={stockFilterValue}
+                        stockValueRange={stockValueRange}
+                        reorderPointFilter={reorderPointFilter}
+                        handleCategoryFilterChange={handleCategoryFilterChange}
+                        handleStockFilterChange={handleStockFilterChange}
+                        handleStockValueRangeChange={
+                            handleStockValueRangeChange
+                        }
+                        handleReorderPointFilterChange={
+                            handleReorderPointFilterChange
+                        }
+                        clearAllFilters={clearAllFilters}
+                        activeFilterCount={activeFilterCount}
+                    />
+                </Sheet>
 
                 {/* Active Filter Badges */}
                 <div className="flex items-center gap-1.5">
@@ -363,18 +236,6 @@ export function InventoryTableToolbar({
                         </Badge>
                     )}
                 </div>
-
-                {/* Clear Filters Button (Outside Popover) */}
-                {hasActiveFilters && (
-                    <Button
-                        variant="ghost"
-                        onClick={clearAllFilters}
-                        className="h-9 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-offset-0 focus-visible:ring-1 focus-visible:ring-destructive/50 transition-colors duration-150"
-                    >
-                        <XCircle className="mr-1 h-3.5 w-3.5" />
-                        Clear
-                    </Button>
-                )}
 
                 {/* Search Bar */}
                 <div className="relative flex-grow sm:flex-grow-0 sm:w-64">

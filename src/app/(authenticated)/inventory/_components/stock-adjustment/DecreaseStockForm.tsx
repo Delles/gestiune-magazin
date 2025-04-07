@@ -41,17 +41,18 @@ import {
 } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 // Schema and Services
 import {
     decreaseStockSchema,
     type DecreaseStockFormValues,
-    type DecreaseStockTransactionType,
+    type StockAdjustmentFormTransactionType,
 } from "@/lib/validation/inventory-schemas";
 import { adjustInventoryItemStock } from "@/services/inventoryService";
 
 interface TransactionTypeConfig {
-    value: DecreaseStockTransactionType;
+    value: StockAdjustmentFormTransactionType;
     label: string;
     description: string;
     icon: React.ReactNode;
@@ -160,6 +161,14 @@ export default function DecreaseStockForm({
         quantity,
         isWriteOff,
     ]);
+
+    // START: Dynamic Reason Placeholder
+    let reasonPlaceholder = "Optional notes...";
+    if (isWriteOff)
+        reasonPlaceholder = "Required: e.g., Damaged in storage, Expired";
+    if (isCorrection)
+        reasonPlaceholder = "Required: e.g., Cycle count adjustment";
+    // END: Dynamic Reason Placeholder
 
     // Add validation for available stock
     useEffect(() => {
@@ -348,7 +357,7 @@ export default function DecreaseStockForm({
                                             <FormControl>
                                                 <RadioGroup
                                                     onValueChange={(
-                                                        value: DecreaseStockTransactionType
+                                                        value: StockAdjustmentFormTransactionType
                                                     ) => {
                                                         field.onChange(value);
                                                         // Reset price fields when type changes
@@ -607,9 +616,54 @@ export default function DecreaseStockForm({
                                                                         "itemCost"
                                                                     )
                                                                 }
+                                                                readOnly={
+                                                                    isWriteOff
+                                                                }
+                                                                className={cn(
+                                                                    isWriteOff &&
+                                                                        "bg-muted/70 cursor-not-allowed border-dashed"
+                                                                )}
                                                             />
                                                         </FormControl>
                                                         <FormMessage />
+                                                        {isWriteOff &&
+                                                            averagePurchasePrice !==
+                                                                null && (
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger className="w-full text-left">
+                                                                            <p className="text-xs text-muted-foreground pl-1 pt-1">
+                                                                                (Derived
+                                                                                from
+                                                                                Avg.
+                                                                                Cost:
+                                                                                <span className="font-mono">
+                                                                                    {formatCurrency(
+                                                                                        averagePurchasePrice
+                                                                                    )}
+                                                                                </span>
+
+                                                                                )
+                                                                            </p>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="bottom">
+                                                                            <p className="text-xs">
+                                                                                For
+                                                                                write-offs,
+                                                                                the
+                                                                                cost
+                                                                                is
+                                                                                based
+                                                                                on
+                                                                                the
+                                                                                average
+                                                                                purchase
+                                                                                price.
+                                                                            </p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+                                                            )}
                                                     </FormItem>
                                                 )}
                                             />
@@ -675,6 +729,25 @@ export default function DecreaseStockForm({
                             </div>
                         )}
 
+                        {/* START: Cost Impact Preview */}
+                        {isWriteOff &&
+                            quantity > 0 &&
+                            averagePurchasePrice !== null && (
+                                <div className="text-sm text-muted-foreground mt-1 p-2 bg-muted/50 rounded border border-dashed">
+                                    Estimated Value Lost:{" "}
+                                    <span className="font-medium text-destructive">
+                                        {formatCurrency(
+                                            quantity * averagePurchasePrice
+                                        )}
+                                    </span>
+                                    <span className="text-xs">
+                                        {" "}
+                                        (Based on Avg. Cost)
+                                    </span>
+                                </div>
+                            )}
+                        {/* END: Cost Impact Preview */}
+
                         <div className="grid grid-cols-5 gap-3">
                             <div className="col-span-2">
                                 <FormField
@@ -702,22 +775,18 @@ export default function DecreaseStockForm({
                                     name="reason"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="flex items-center gap-1">
-                                                Reason
-                                                {showReasonRequired && (
-                                                    <span className="text-destructive">
-                                                        *
-                                                    </span>
-                                                )}
+                                            <FormLabel
+                                                className={cn({
+                                                    "after:content-['*'] after:ml-0.5 after:text-destructive":
+                                                        showReasonRequired,
+                                                })}
+                                            >
+                                                Reason / Notes
                                             </FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder={
-                                                        isWriteOff
-                                                            ? "Required: Why items are being written off"
-                                                            : isCorrection
-                                                            ? "Required: Why correction is needed"
-                                                            : "Optional notes"
+                                                        reasonPlaceholder
                                                     }
                                                     {...field}
                                                     value={field.value || ""}

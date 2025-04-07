@@ -7,9 +7,9 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         itemId: string;
-    };
+    }>;
 }
 
 // Helper for structured error response
@@ -82,8 +82,11 @@ export async function POST(
         // --- Logic Branching ---
 
         // Case 1: Purchase or Return (Use RPC Function)
-        if (transactionType === "purchase" || transactionType === "return") {
-            // Validate price for these types
+        if (
+            transactionType === "purchase" ||
+            (transactionType as string) === "return"
+        ) {
+            // Ensure purchasePrice is valid
             if (
                 purchasePrice === null ||
                 purchasePrice === undefined ||
@@ -189,9 +192,7 @@ export async function POST(
             ].includes(transactionType);
             const isDecrease = [
                 "sale",
-                "damaged",
-                "loss",
-                "expired",
+                "write-off",
                 "inventory-correction-remove",
                 "other-removal",
             ].includes(transactionType);
@@ -209,7 +210,7 @@ export async function POST(
                 newQuantity = currentStock - adjustmentQuantity;
                 quantityChange = -adjustmentQuantity;
             } else {
-                // Should not happen if validation passed
+                // This check should now correctly handle write-off if isDecrease logic is right
                 return createErrorResponse(
                     `Invalid transaction type for manual adjustment: ${transactionType}`,
                     400
@@ -245,46 +246,74 @@ export async function POST(
                 .from("StockTransactions")
                 .insert({
                     item_id: itemId,
-                    transaction_type: transactionType,
+                    transaction_type: transactionType, // Use the validated type (e.g., 'write-off')
                     quantity_change: quantityChange,
                     reason: reason || null,
-                    // Log price associated *with this transaction* if relevant
-                    // For write-offs (damaged transactions), use purchasePrice to track the cost value lost
-                    purchase_price:
-                        transactionType === "damaged" && purchasePrice !== null
-                            ? purchasePrice
-                            : null, // For write-offs, store the value lost in purchase_price
-                    selling_price:
-                        transactionType === "sale" && sellingPrice !== null
-                            ? sellingPrice
-                            : null, // Only for sales
-                    total_price: totalPrice !== null ? totalPrice : null, // Track total for all transactions that provide it
-                    reference_number: referenceNumber || null,
-                    created_at:
+                    transaction_date:
                         date instanceof Date
                             ? date.toISOString()
                             : new Date().toISOString(),
-                    user_id: userId,
-                });
+                    user_id: userId, // Use correct column name and variable
+                    // Include price/cost info based on transaction type
+                    purchase_price:
+                        transactionType === "write-off"
+                            ? purchasePrice // Use validated camelCase variable for value
+                            : null,
+                    selling_price:
+                        transactionType === "sale"
+                            ? sellingPrice // Use validated camelCase variable for value
+                            : null,
+                    total_price: totalPrice, // Use correct column name and variable
+                    reference_number: referenceNumber, // Use correct column name and variable
+                })
+                .select() // Select to potentially get the inserted row ID if needed
+                .single(); // Assuming we insert one row
 
             if (logError) {
                 console.error(
-                    `Error logging manual stock transaction for item ${itemId}:`,
+                    `Error logging stock transaction for item ${itemId}:`,
                     logError
                 );
-                // Log error but don't fail operation
+                // Decide if this should cause the entire operation to fail
+                // For now, we'll return success but log the error
+                // return createErrorResponse("Failed to log stock transaction after update", 500);
             }
+
+            // Fetch the final item details AFTER the update and log
+            const { data: finalItemData, error: finalFetchError } =
+                await supabase
+                    .from("InventoryItems")
+                    .select(`*, categories(id, name)`)
+                    .eq("id", itemId)
+                    .single();
+
+            if (finalFetchError || !finalItemData) {
+                console.warn(
+                    "Could not fetch item details after successful stock adjustment."
+                );
+                // Return success but without the updated item details
+                return NextResponse.json({
+                    message: `Stock adjusted successfully via ${transactionType}, but failed to fetch final state.`,
+                    newQuantity: finalQuantity, // Return the quantity confirmed by the update
+                });
+            }
+
+            // Prepare item data for response (similar to purchase branch)
+            const transformedFinalItem = {
+                ...finalItemData,
+                category_name:
+                    finalItemData.categories?.name || "Uncategorized",
+                categories: undefined,
+            };
 
             return NextResponse.json({
                 message: `Stock adjusted successfully via ${transactionType}`,
-                newQuantity: finalQuantity, // Return the quantity confirmed by the DB
+                newQuantity: transformedFinalItem.stock_quantity, // Use quantity from final fetched item
+                item: transformedFinalItem, // Return updated item data
             });
         }
     } catch (error: unknown) {
-        console.error(
-            `Unexpected error adjusting stock for item ${params?.itemId}:`,
-            error
-        );
+        console.error("Unexpected error adjusting stock:", error);
         return createErrorResponse(
             error instanceof Error
                 ? error.message

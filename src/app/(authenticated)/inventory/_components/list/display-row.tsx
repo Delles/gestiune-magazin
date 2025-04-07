@@ -104,6 +104,14 @@ const DisplayRow = React.memo(
             setReorderPointItemId(null);
         };
 
+        // START: Determine stock status for highlighting
+        const isLowStock =
+            item.reorder_point !== null &&
+            item.stock_quantity <= item.reorder_point &&
+            item.stock_quantity > 0;
+        const isOutOfStock = item.stock_quantity <= 0;
+        // END: Determine stock status
+
         return (
             <TableRow
                 key={row.id}
@@ -115,7 +123,13 @@ const DisplayRow = React.memo(
                         "text-xs": density === "compact",
                         "text-sm": density === "normal",
                         "text-base": density === "comfortable",
-                    }
+                    },
+                    // START: Apply conditional background classes
+                    isOutOfStock &&
+                        "bg-destructive/5 hover:bg-destructive/10 data-[state=selected]:bg-destructive/15", // Subtle red
+                    isLowStock &&
+                        "bg-yellow-50 dark:bg-yellow-950/20 hover:bg-yellow-100 dark:hover:bg-yellow-950/40 data-[state=selected]:bg-yellow-950/50" // Subtle yellow
+                    // END: Apply conditional background classes
                 )}
             >
                 {row.getVisibleCells().map((cell) => {

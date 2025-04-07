@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
     Table,
     TableBody,
@@ -25,40 +24,25 @@ import {
 } from "@/lib/utils";
 import {
     ArrowUpDown,
-    Search,
     ChevronLeft,
     ChevronRight,
-    RefreshCw,
     ArrowUp,
     ArrowDown,
     PackageSearch, // Icon for empty state
-    X,
-    AlertCircle, // Icon for clearing filters
     ListFilter, // For Type Filter Button
-    CalendarIcon, // For Date Range Placeholder
     FileDown, // For Export
     View, // For Columns
     FilterX, // For Clear Filters
     Settings2Icon, // For Density Toggle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox"; // For filter popover
-import { Label } from "@/components/ui/label"; // For filter popover
 import {
     flexRender,
     getCoreRowModel,
@@ -71,8 +55,6 @@ import {
     type ColumnFiltersState,
 } from "@tanstack/react-table";
 import { useDebounce } from "@/hooks/use-debounce"; // Import debounce hook
-import { StockTransaction } from "../../types/types"; // Import type
-import { getStockTransactions } from "../../_data/api"; // Import API function
 import type { DateRange } from "react-day-picker"; // Import DateRange type
 import {
     DropdownMenu,
@@ -84,32 +66,37 @@ import {
     DropdownMenuRadioGroup, // Added
     DropdownMenuRadioItem, // Added
 } from "@/components/ui/dropdown-menu";
-import { Calendar } from "@/components/ui/calendar"; // Added
 import { format, isWithinInterval } from "date-fns"; // Added date-fns functions
 import { cn } from "@/lib/utils";
 import { ro } from "date-fns/locale"; // Import Romanian locale for date formatting
 import { toast } from "sonner"; // Correct toast import
+import { Tables } from "@/types/supabase";
+// START: Import Sheet components and new Sidebar
+import { Sheet, SheetTrigger } from "@/components/ui/sheet";
+import { HistoryFilterSidebar } from "./history-filter-sidebar";
+import { getTransactionTypeFriendlyName } from "./stock-transaction-history-helpers"; // Keep this one for CSV export
+// END: Import Sheet components
 
 // Helper to get friendly names for transaction types
-const getTransactionTypeFriendlyName = (type: string): string => {
-    let displayName = type.charAt(0).toUpperCase() + type.slice(1);
-    displayName = displayName.replace(/-/g, " "); // Replace hyphens
-    return displayName;
-};
+// const getTransactionTypeFriendlyName = (type: string): string => {
+//     let displayName = type.charAt(0).toUpperCase() + type.slice(1);
+//     displayName = displayName.replace(/-/g, " "); // Replace hyphens
+//     return displayName;
+// };
 
 // Available transaction types for filtering
-const ALL_TRANSACTION_TYPES = [
-    "purchase",
-    "return",
-    "inventory-correction-add",
-    "other-addition",
-    "sale",
-    "damaged",
-    "loss",
-    "expired",
-    "inventory-correction-remove",
-    "other-removal",
-];
+// const ALL_TRANSACTION_TYPES = [
+//     "purchase",
+//     "return",
+//     "inventory-correction-add",
+//     "other-addition",
+//     "sale",
+//     "damaged",
+//     "loss",
+//     "expired",
+//     "inventory-correction-remove",
+//     "other-removal",
+// ];
 
 // Helper for CSV escaping (using unknown)
 const escapeCsvValue = (value: unknown): string => {
@@ -126,17 +113,30 @@ const escapeCsvValue = (value: unknown): string => {
 // Define density type
 type Density = "compact" | "normal" | "comfortable";
 
+// START: Update Props Interface
 interface StockTransactionHistoryProps {
     itemId: string;
     itemName: string;
+    currentStock: number; // Add current stock prop
+    transactions: Tables<"StockTransactions">[]; // Add transactions prop with Supabase type
+    unit: string; // Add unit prop
 }
+// END: Update Props Interface
+
+// START: Define extended transaction type with balance
+type TransactionWithBalance = Tables<"StockTransactions"> & {
+    balance: number;
+};
+// END: Define extended transaction type
 
 export default function StockTransactionHistory({
-    itemId,
     itemName,
+    currentStock,
+    transactions: initialTransactions,
+    unit,
 }: StockTransactionHistoryProps) {
     const [sorting, setSorting] = useState<SortingState>([
-        { id: "created_at", desc: true },
+        { id: "created_at", desc: false },
     ]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [globalFilter, setGlobalFilter] = useState("");
@@ -150,21 +150,46 @@ export default function StockTransactionHistory({
     // --- Add Density State ---
     const [density, setDensity] = useState<Density>("normal");
 
-    const {
-        data: transactions = [],
-        isLoading,
-        isError,
-        error,
-        refetch,
-    } = useQuery<StockTransaction[], unknown>({
-        // Keep error as unknown
-        queryKey: ["stockTransactions", itemId],
-        queryFn: () => getStockTransactions(itemId),
-        // Consider adding placeholderData or staleTime if needed
-    });
+    // --- Calculate Running Balance --- START
+    const transactionsWithBalance = useMemo(() => {
+        // Sort initial transactions DESC to calculate backwards from current stock
+        const sortedDesc = [...initialTransactions].sort(
+            (a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime()
+        );
 
+        let runningBalance = currentStock; // Start from the known current stock
+        const processed: TransactionWithBalance[] = [];
+
+        // Iterate backwards through the DESC sorted transactions
+        for (let i = 0; i < sortedDesc.length; i++) {
+            const tx = sortedDesc[i];
+            processed.push({ ...tx, balance: runningBalance });
+            // To find the balance *before* this transaction, reverse its effect
+            runningBalance -= tx.quantity_change;
+        }
+
+        // Reverse the processed array to display in chronological order (matching default sort)
+        return processed.reverse();
+    }, [initialTransactions, currentStock]);
+    // --- Calculate Running Balance --- END
+
+    // --- Filter state and calculation --- START
+    // Get selected types from columnFilters state
+    const selectedTypes = useMemo(() => {
+        return (
+            (columnFilters.find((f) => f.id === "transaction_type")?.value as
+                | string[]
+                | undefined) ?? []
+        );
+    }, [columnFilters]);
+
+    // Filter calculated data (date range, reference, types, global)
     const filteredTransactions = useMemo(() => {
-        let filtered = [...transactions];
+        let filtered = [...transactionsWithBalance]; // Start with calculated data
+
+        // Apply Date Range Filter
         if (dateRange?.from && dateRange?.to) {
             filtered = filtered.filter((transaction) => {
                 const transactionDate = new Date(transaction.created_at);
@@ -183,6 +208,7 @@ export default function StockTransactionHistory({
                 }
             });
         } else if (dateRange?.from) {
+            // Handle single date selection
             filtered = filtered.filter((transaction) => {
                 try {
                     const transactionDate = new Date(transaction.created_at);
@@ -198,16 +224,48 @@ export default function StockTransactionHistory({
                 }
             });
         }
+
+        // Apply Reference Filter (Debounced)
         if (debouncedReferenceFilter) {
-            const lowerCaseFilter = debouncedReferenceFilter.toLowerCase();
+            const lowerCaseRefFilter = debouncedReferenceFilter.toLowerCase();
             filtered = filtered.filter((t) =>
-                t.reference_number?.toLowerCase().includes(lowerCaseFilter)
+                t.reference_number?.toLowerCase().includes(lowerCaseRefFilter)
             );
         }
-        return filtered;
-    }, [transactions, dateRange, debouncedReferenceFilter]);
 
-    const columns: ColumnDef<StockTransaction>[] = useMemo(
+        // Apply Transaction Type Filter
+        if (selectedTypes.length > 0) {
+            filtered = filtered.filter((t) =>
+                selectedTypes.includes(t.transaction_type)
+            );
+        }
+
+        // Apply Global Filter (Debounced) - searching notes/reason
+        if (debouncedGlobalFilter) {
+            const lowerCaseGlobalFilter = debouncedGlobalFilter.toLowerCase();
+            filtered = filtered.filter((t) => {
+                const reasonMatch = t.reason
+                    ?.toLowerCase()
+                    .includes(lowerCaseGlobalFilter);
+                const notesMatch = t.notes
+                    ?.toLowerCase()
+                    .includes(lowerCaseGlobalFilter);
+                return reasonMatch || notesMatch;
+            });
+        }
+
+        return filtered;
+    }, [
+        transactionsWithBalance,
+        dateRange,
+        debouncedReferenceFilter,
+        selectedTypes, // Add selectedTypes dependency
+        debouncedGlobalFilter, // Add global filter dependency
+    ]);
+    // --- Filter state and calculation --- END
+
+    // Column Definitions (Use calculated data)
+    const columns: ColumnDef<TransactionWithBalance>[] = useMemo(
         () => [
             {
                 accessorKey: "created_at",
@@ -257,6 +315,7 @@ export default function StockTransactionHistory({
                                 "expired",
                                 "inventory-correction-remove",
                                 "other-removal",
+                                "write-off",
                             ].includes(type)
                         )
                             return "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700";
@@ -428,54 +487,82 @@ export default function StockTransactionHistory({
                 },
             },
             {
-                accessorKey: "user_name",
-                header: "Recorded By",
+                accessorKey: "balance",
+                header: () => <div className="text-right">Balance</div>,
                 cell: ({ row }) => {
-                    const userName = row.original.user_name || "System";
-                    const initials =
-                        userName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase() || "SY";
+                    const balance = row.original.balance;
                     return (
-                        <TooltipProvider delayDuration={100}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold shrink-0">
-                                            {initials}
-                                        </div>
-                                        {/* Optionally hide name on small screens */}
-                                        <span className="text-sm hidden sm:inline truncate max-w-[100px]">
-                                            {userName}
-                                        </span>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{userName}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <div className="text-right font-medium w-20">
+                            {balance} {unit || "units"} {/* Use passed unit */}
+                        </div>
                     );
                 },
+                enableSorting: false, // Usually not sorted
             },
         ],
-        []
+        [unit]
     );
 
-    const activeFilters = useMemo(() => {
-        const typeFilter = columnFilters.find(
-            (f) => f.id === "transaction_type"
+    // --- START: Handlers & Sidebar State ---
+    const handleTypeFilterChange = (
+        checked: boolean | string,
+        type: string
+    ) => {
+        setColumnFilters((prevFilters) => {
+            const currentTypeFilter = prevFilters.find(
+                (f) => f.id === "transaction_type"
+            );
+            let currentValues = (currentTypeFilter?.value as string[]) ?? [];
+
+            if (checked === true) {
+                if (!currentValues.includes(type)) {
+                    currentValues = [...currentValues, type];
+                }
+            } else {
+                currentValues = currentValues.filter((v) => v !== type);
+            }
+
+            // Remove the old filter if it exists
+            const otherFilters = prevFilters.filter(
+                (f) => f.id !== "transaction_type"
+            );
+
+            // Add the new filter only if there are selected types
+            if (currentValues.length > 0) {
+                return [
+                    ...otherFilters,
+                    { id: "transaction_type", value: currentValues },
+                ];
+            } else {
+                return otherFilters; // Return only other filters if no types selected
+            }
+        });
+    };
+
+    const clearSpecificFilters = () => {
+        setGlobalFilter("");
+        setReferenceFilter("");
+        setDateRange(undefined);
+        // Clear only the type filter from columnFilters
+        setColumnFilters((prev) =>
+            prev.filter((f) => f.id !== "transaction_type")
         );
+    };
+
+    const sidebarActiveFilterCount = useMemo(() => {
         return (
-            globalFilter.length > 0 ||
-            (typeFilter && (typeFilter.value as string[]).length > 0) ||
-            referenceFilter.length > 0 ||
-            dateRange !== undefined
+            (globalFilter ? 1 : 0) +
+            (referenceFilter ? 1 : 0) +
+            (dateRange ? 1 : 0) +
+            (selectedTypes.length > 0 ? 1 : 0)
         );
-    }, [globalFilter, columnFilters, dateRange, referenceFilter]);
+    }, [globalFilter, referenceFilter, dateRange, selectedTypes]);
+    // --- END: Handlers & Sidebar State ---
+
+    const activeFilters = useMemo(() => {
+        // This counts ALL active filters including sorting potentially if added
+        return sidebarActiveFilterCount > 0; // Simplified based on sidebar filters
+    }, [sidebarActiveFilterCount]);
 
     const table = useReactTable({
         data: filteredTransactions,
@@ -507,10 +594,10 @@ export default function StockTransactionHistory({
             "Total",
             "Referinta",
             "Motiv/Note",
-            "Utilizator",
+            "Sold",
         ];
         const dataRows = rows.map((row) => {
-            const transaction: StockTransaction = row.original;
+            const transaction: TransactionWithBalance = row.original;
             const date = transaction.created_at
                 ? format(new Date(transaction.created_at), "dd.MM.yyyy HH:mm", {
                       locale: ro,
@@ -528,7 +615,7 @@ export default function StockTransactionHistory({
             const reasonNotes = [transaction.reason, transaction.notes]
                 .filter(Boolean)
                 .join(" | ");
-            const user = transaction.user_name || "System";
+            const balance = transaction.balance;
             return [
                 date,
                 type,
@@ -537,7 +624,7 @@ export default function StockTransactionHistory({
                 total,
                 reference,
                 reasonNotes,
-                user,
+                balance,
             ]
                 .map(escapeCsvValue)
                 .join(",");
@@ -563,34 +650,6 @@ export default function StockTransactionHistory({
         toast.success("Istoricul a fost exportat cu succes.");
     };
 
-    const handleTypeFilterChange = (
-        checked: boolean | string,
-        type: string
-    ) => {
-        const currentFilter = columnFilters.find(
-            (f) => f.id === "transaction_type"
-        )?.value as string[] | undefined;
-        let newFilterValues = currentFilter ? [...currentFilter] : [];
-        if (checked === true) {
-            if (!newFilterValues.includes(type)) {
-                newFilterValues.push(type);
-            }
-        } else {
-            newFilterValues = newFilterValues.filter((v) => v !== type);
-        }
-        const otherFilters = columnFilters.filter(
-            (f) => f.id !== "transaction_type"
-        );
-        if (newFilterValues.length > 0) {
-            setColumnFilters([
-                ...otherFilters,
-                { id: "transaction_type", value: newFilterValues },
-            ]);
-        } else {
-            setColumnFilters(otherFilters);
-        }
-    };
-
     const clearAllFilters = () => {
         setColumnFilters([]);
         setGlobalFilter("");
@@ -606,434 +665,176 @@ export default function StockTransactionHistory({
         }
     };
 
-    if (isLoading) {
-        return (
-            <Card className="shadow-sm border-border/60">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <Skeleton className="h-6 w-48" />
-                        <Skeleton className="h-8 w-8 rounded-full" />
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4">
-                    <div className="flex gap-2">
-                        <Skeleton className="h-9 w-24" />
-                        <Skeleton className="h-9 flex-1" />
-                        <Skeleton className="h-9 w-20" />
-                    </div>
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <div className="flex justify-between items-center mt-4">
-                        <Skeleton className="h-5 w-32" />
-                        <div className="flex gap-2">
-                            <Skeleton className="h-8 w-8" />
-                            <Skeleton className="h-8 w-8" />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    }
-
-    if (isError) {
-        // More defensive error message extraction
-        let errorMessage = "An unknown error occurred";
-        if (error instanceof Error) {
-            errorMessage = error.message;
-        } else if (typeof error === "string") {
-            errorMessage = error;
+    const getDensityPadding = (density: Density): string => {
+        switch (density) {
+            case "compact":
+                return "px-2 py-1 text-xs"; // Adjusted padding
+            case "comfortable":
+                return "px-4 py-3"; // Adjusted padding
+            case "normal":
+            default:
+                return "px-3 py-2"; // Adjusted padding
         }
-
-        return (
-            <Card className="shadow-sm border-destructive/50">
-                <CardHeader>
-                    <CardTitle className="text-lg text-destructive flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5" /> Error Loading
-                        History
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center text-center py-10">
-                    <p className="text-destructive mb-4">
-                        Failed to load transaction history. {errorMessage}
-                    </p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => refetch()}
-                    >
-                        <RefreshCw className="mr-2 h-4 w-4" /> Try again
-                    </Button>
-                </CardContent>
-            </Card>
-        );
-    }
+    };
 
     return (
-        <TooltipProvider>
-            <Card className="shadow-sm border-border/60">
-                <CardHeader>
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                        <CardTitle className="text-lg">
-                            Transaction History
-                            <span className="text-muted-foreground font-medium text-base ml-2">
-                                ({itemName})
-                            </span>
-                        </CardTitle>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-muted-foreground hover:text-foreground h-8 w-8"
-                                    onClick={() => refetch()}
-                                    title="Refresh data"
-                                >
-                                    <RefreshCw
-                                        className={`h-4 w-4 ${
-                                            isLoading ? "animate-spin" : ""
-                                        }`}
-                                    />
-                                    <span className="sr-only">
-                                        Refresh data
-                                    </span>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Refresh Data</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                    <div className="flex flex-col gap-4 mb-4 border-b pb-4">
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                            <div className="relative flex-1 w-full sm:max-w-xs">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search notes, reasons..."
-                                    value={globalFilter ?? ""}
-                                    onChange={(event) =>
-                                        setGlobalFilter(event.target.value)
-                                    }
-                                    className="pl-8 w-full h-9"
-                                />
-                                {globalFilter && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setGlobalFilter("")}
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="relative flex-1 w-full sm:max-w-xs">
-                                <Input
-                                    placeholder="Filter by Ref#..."
-                                    value={referenceFilter}
-                                    onChange={(e) =>
-                                        setReferenceFilter(e.target.value)
-                                    }
-                                    className="w-full h-9"
-                                />
-                                {referenceFilter && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setReferenceFilter("")}
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </Button>
-                                )}
-                            </div>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        id="date"
-                                        variant={"outline"}
-                                        className={cn(
-                                            "w-full sm:w-[260px] justify-start text-left font-normal h-9",
-                                            !dateRange &&
-                                                "text-muted-foreground"
-                                        )}
-                                    >
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {dateRange?.from ? (
-                                            dateRange.to ? (
-                                                <>
-                                                    {format(
-                                                        dateRange.from,
-                                                        "LLL dd, y"
-                                                    )}{" "}
-                                                    -{" "}
-                                                    {format(
-                                                        dateRange.to,
-                                                        "LLL dd, y"
-                                                    )}
-                                                </>
-                                            ) : (
-                                                format(
-                                                    dateRange.from,
-                                                    "LLL dd, y"
-                                                )
-                                            )
-                                        ) : (
-                                            <span>Select Date Range</span>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                    className="w-auto p-0"
-                                    align="end"
-                                >
-                                    <Calendar
-                                        initialFocus
-                                        mode="range"
-                                        defaultMonth={dateRange?.from}
-                                        selected={dateRange}
-                                        onSelect={setDateRange}
-                                        numberOfMonths={2}
-                                    />
-                                    {dateRange && (
-                                        <div className="p-2 border-t flex justify-end">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setDateRange(undefined)
-                                                }
-                                            >
-                                                Clear Dates
-                                            </Button>
-                                        </div>
-                                    )}
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-9 w-full sm:w-auto"
-                                    >
-                                        <ListFilter className="mr-2 h-4 w-4" />{" "}
-                                        Filter Types
-                                        {((
-                                            columnFilters.find(
-                                                (f) =>
-                                                    f.id === "transaction_type"
-                                            )?.value as string[] | undefined
-                                        )?.length ?? 0) > 0 && (
-                                            <Badge
-                                                variant="secondary"
-                                                className="rounded-sm px-1 font-normal ml-2"
-                                            >
-                                                {(
-                                                    columnFilters.find(
-                                                        (f) =>
-                                                            f.id ===
-                                                            "transaction_type"
-                                                    )?.value as string[]
-                                                )?.length ?? 0}
-                                            </Badge>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                    className="w-64 p-0"
-                                    align="start"
-                                >
-                                    <div className="p-4">
-                                        <h4 className="font-medium leading-none mb-2">
-                                            Filter by Type
-                                        </h4>
-                                        <div className="grid gap-2 max-h-60 overflow-y-auto pr-2">
-                                            {ALL_TRANSACTION_TYPES.map(
-                                                (type) => (
-                                                    <Label
-                                                        key={type}
-                                                        className="flex items-center gap-2 font-normal cursor-pointer"
-                                                    >
-                                                        <Checkbox
-                                                            checked={
-                                                                (
-                                                                    columnFilters.find(
-                                                                        (f) =>
-                                                                            f.id ===
-                                                                            "transaction_type"
-                                                                    )?.value as
-                                                                        | string[]
-                                                                        | undefined
-                                                                )?.includes(
-                                                                    type
-                                                                ) ?? false
-                                                            }
-                                                            onCheckedChange={(
-                                                                checked
-                                                            ) =>
-                                                                handleTypeFilterChange(
-                                                                    checked,
-                                                                    type
-                                                                )
-                                                            }
-                                                        />{" "}
-                                                        {getTransactionTypeFriendlyName(
-                                                            type
-                                                        )}
-                                                    </Label>
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
-                                    {((
-                                        columnFilters.find(
-                                            (f) => f.id === "transaction_type"
-                                        )?.value as string[] | undefined
-                                    )?.length ?? 0) > 0 && (
-                                        <>
-                                            <Separator />
-                                            <div className="p-2 flex justify-end">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        handleTypeFilterChange(
-                                                            false,
-                                                            ""
-                                                        )
-                                                    }
-                                                >
-                                                    Clear Type Filter
-                                                </Button>
-                                            </div>
-                                        </>
-                                    )}
-                                </PopoverContent>
-                            </Popover>
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-9 w-full sm:w-auto ml-auto"
-                                    >
-                                        <Settings2Icon className="mr-2 h-4 w-4" />
-                                        Density
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="end"
-                                    className="w-48"
-                                >
-                                    <DropdownMenuLabel>
-                                        Table Density
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuRadioGroup
-                                        value={density}
-                                        onValueChange={(value) =>
-                                            setDensity(value as Density)
-                                        }
-                                    >
-                                        <DropdownMenuRadioItem value="compact">
-                                            Compact
-                                        </DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="normal">
-                                            Normal
-                                        </DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="comfortable">
-                                            Comfortable
-                                        </DropdownMenuRadioItem>
-                                    </DropdownMenuRadioGroup>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-9 w-full sm:w-auto"
-                                    >
-                                        <View className="mr-2 h-4 w-4" />
-                                        Columns
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="end"
-                                    className="w-56"
-                                >
-                                    <DropdownMenuLabel>
-                                        Toggle Columns
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {table
-                                        .getAllColumns()
-                                        .filter((column) => column.getCanHide())
-                                        .map((column) => {
-                                            const headerText =
-                                                column.columnDef.header &&
-                                                typeof column.columnDef
-                                                    .header !== "string"
-                                                    ? column.id
-                                                    : String(
-                                                          column.columnDef
-                                                              .header ||
-                                                              column.id
-                                                      );
-                                            return (
-                                                <DropdownMenuCheckboxItem
-                                                    key={column.id}
-                                                    className="capitalize"
-                                                    checked={column.getIsVisible()}
-                                                    onCheckedChange={(value) =>
-                                                        column.toggleVisibility(
-                                                            !!value
-                                                        )
-                                                    }
-                                                >
-                                                    {headerText}
-                                                </DropdownMenuCheckboxItem>
-                                            );
-                                        })}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
+        <Card className="shadow-sm border-border/60">
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <PackageSearch className="h-5 w-5" />
+                        <span>Istoric Tranzacții Stoc</span>
+                    </CardTitle>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-4">
+                {/* START: Remove Old Toolbar Content & Add New Toolbar */}
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 mb-4 border-b pb-4">
+                    {/* Left Side: Filter Button */}
+                    <Sheet>
+                        <SheetTrigger asChild>
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-9 w-full sm:w-auto"
-                                onClick={exportToCsv}
-                                disabled={
-                                    table.getFilteredRowModel().rows.length ===
-                                    0
-                                }
+                                className="h-9 w-full sm:w-auto relative"
                             >
-                                <FileDown className="mr-2 h-4 w-4" />
-                                Export
+                                <ListFilter className="mr-2 h-4 w-4" /> Filter
+                                {sidebarActiveFilterCount > 0 && (
+                                    <Badge
+                                        variant="secondary"
+                                        className="absolute -top-2 -right-2 rounded-full px-1.5 py-0.5 text-xs font-semibold"
+                                    >
+                                        {sidebarActiveFilterCount}
+                                    </Badge>
+                                )}
                             </Button>
+                        </SheetTrigger>
+                        <HistoryFilterSidebar
+                            globalFilter={globalFilter}
+                            setGlobalFilter={setGlobalFilter}
+                            referenceFilter={referenceFilter}
+                            setReferenceFilter={setReferenceFilter}
+                            dateRange={dateRange}
+                            setDateRange={setDateRange}
+                            selectedTypes={selectedTypes}
+                            handleTypeFilterChange={handleTypeFilterChange}
+                            clearSpecificFilters={clearSpecificFilters}
+                            activeFilterCount={sidebarActiveFilterCount}
+                        />
+                    </Sheet>
 
-                            {activeFilters && (
+                    {/* Right Side: View, Export, Clear All (Optional) */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 w-full sm:w-auto ml-auto"
+                                >
+                                    <Settings2Icon className="mr-2 h-4 w-4" />
+                                    Density
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel>
+                                    Table Density
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioGroup
+                                    value={density}
+                                    onValueChange={(value) =>
+                                        setDensity(value as Density)
+                                    }
+                                >
+                                    <DropdownMenuRadioItem value="compact">
+                                        Compact
+                                    </DropdownMenuRadioItem>
+                                    <DropdownMenuRadioItem value="normal">
+                                        Normal
+                                    </DropdownMenuRadioItem>
+                                    <DropdownMenuRadioItem value="comfortable">
+                                        Comfortable
+                                    </DropdownMenuRadioItem>
+                                </DropdownMenuRadioGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 w-full sm:w-auto"
+                                >
+                                    <View className="mr-2 h-4 w-4" />
+                                    Columns
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>
+                                    Toggle Columns
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {table
+                                    .getAllColumns()
+                                    .filter((column) => column.getCanHide())
+                                    .map((column) => {
+                                        const headerText =
+                                            column.columnDef.header &&
+                                            typeof column.columnDef.header !==
+                                                "string"
+                                                ? column.id
+                                                : String(
+                                                      column.columnDef.header ||
+                                                          column.id
+                                                  );
+                                        return (
+                                            <DropdownMenuCheckboxItem
+                                                key={column.id}
+                                                className="capitalize"
+                                                checked={column.getIsVisible()}
+                                                onCheckedChange={(value) =>
+                                                    column.toggleVisibility(
+                                                        !!value
+                                                    )
+                                                }
+                                            >
+                                                {headerText}
+                                            </DropdownMenuCheckboxItem>
+                                        );
+                                    })}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 w-full sm:w-auto"
+                            onClick={exportToCsv}
+                            disabled={
+                                table.getFilteredRowModel().rows.length === 0
+                            }
+                        >
+                            <FileDown className="mr-2 h-4 w-4" />
+                            Export
+                        </Button>
+
+                        {/* Optional: Keep a master clear button? */}
+                        {activeFilters && (
+                            <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={clearAllFilters}
+                                            onClick={clearAllFilters} // Use the original clear all
                                             className="h-9 w-9 text-muted-foreground hover:text-destructive"
                                             title="Clear all filters"
                                         >
                                             <FilterX className="h-4 w-4" />
                                             <span className="sr-only">
-                                                Clear Filters
+                                                Clear All Filters
                                             </span>
                                         </Button>
                                     </TooltipTrigger>
@@ -1041,214 +842,139 @@ export default function StockTransactionHistory({
                                         <p>Clear All Filters</p>
                                     </TooltipContent>
                                 </Tooltip>
-                            )}
-                        </div>
+                            </TooltipProvider>
+                        )}
                     </div>
+                </div>
+                {/* END: Remove Old Toolbar Content & Add New Toolbar */}
 
-                    <div className="rounded-md border overflow-hidden">
-                        <Table>
-                            <TableHeader className="bg-muted/50">
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        {headerGroup.headers.map((header) => (
-                                            <TableHead
-                                                key={header.id}
-                                                className={cn(
-                                                    "px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider", // Base classes
-                                                    {
-                                                        "py-1 h-9":
-                                                            density ===
-                                                            "compact",
-                                                        "py-2 h-auto":
-                                                            density ===
-                                                            "normal",
-                                                        "py-3 h-11":
-                                                            density ===
-                                                            "comfortable",
-                                                    }
-                                                )}
-                                            >
-                                                {header.isPlaceholder
-                                                    ? null
-                                                    : flexRender(
-                                                          header.column
-                                                              .columnDef.header,
-                                                          header.getContext()
-                                                      )}
-                                            </TableHead>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
-                                    [...Array(5)].map((_, i) => (
-                                        <TableRow key={`skeleton-${i}`}>
-                                            {columns.map((column) => (
-                                                <TableCell key={column.id || i}>
-                                                    <Skeleton className="h-5 w-full" />
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))
-                                ) : isError ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={columns.length}
-                                            className="h-48 text-center"
-                                        >
-                                            <div className="flex flex-col items-center justify-center text-destructive space-y-3">
-                                                <AlertCircle className="h-12 w-12 text-destructive/50" />
-                                                <div className="space-y-1">
-                                                    <p className="font-medium">
-                                                        Error Loading History
-                                                    </p>
-                                                    <p className="text-sm">
-                                                        {errorMessage}
-                                                    </p>
-                                                </div>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => refetch()}
-                                                >
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    Try again
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={
-                                                row.getIsSelected() &&
-                                                "selected"
-                                            }
+                <div className="rounded-md border overflow-hidden">
+                    <Table>
+                        <TableHeader>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id}>
+                                    {headerGroup.headers.map((header) => (
+                                        <TableHead
+                                            key={header.id}
                                             className={cn(
-                                                "hover:bg-muted/30", // Existing hover
-                                                // Highlight initial stock rows
-                                                row.original
-                                                    .transaction_type ===
-                                                    "initial-stock" &&
-                                                    "bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100/80 dark:hover:bg-blue-950/50"
+                                                getDensityPadding(density),
+                                                "h-10"
                                             )}
                                         >
-                                            {row
-                                                .getVisibleCells()
-                                                .map((cell) => (
-                                                    <TableCell
-                                                        key={cell.id}
-                                                        className={cn(
-                                                            "px-3 align-top", // Base classes
-                                                            {
-                                                                "py-1.5 text-xs":
-                                                                    density ===
-                                                                    "compact",
-                                                                "py-2.5 text-sm":
-                                                                    density ===
-                                                                    "normal",
-                                                                "py-3.5 text-sm":
-                                                                    density ===
-                                                                    "comfortable",
-                                                            }
-                                                        )}
-                                                    >
-                                                        {flexRender(
-                                                            cell.column
-                                                                .columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
-                                                ))}
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={columns.length}
-                                            className="h-48 text-center"
-                                        >
-                                            <div className="flex flex-col items-center justify-center text-muted-foreground space-y-3">
-                                                <PackageSearch className="h-12 w-12 text-muted-foreground/50" />
-                                                <div className="space-y-1">
-                                                    <p className="font-medium">
-                                                        No Transactions Found
-                                                    </p>
-                                                    <p className="text-sm">
-                                                        {activeFilters
-                                                            ? "Try adjusting your filters."
-                                                            : "There are no stock changes recorded yet."}
-                                                    </p>
-                                                </div>
-                                                {activeFilters && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={
-                                                            clearAllFilters
-                                                        }
-                                                    >
-                                                        Clear Filters
-                                                    </Button>
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(
+                                                      header.column.columnDef
+                                                          .header,
+                                                      header.getContext()
+                                                  )}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableHeader>
+                        <TableBody>
+                            {table.getRowModel().rows?.length ? (
+                                table.getRowModel().rows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        data-state={
+                                            row.getIsSelected() && "selected"
+                                        }
+                                        className={cn({
+                                            "bg-green-50 dark:bg-green-900/20":
+                                                row.original.quantity_change >
+                                                0,
+                                            "bg-red-50 dark:bg-red-900/20":
+                                                row.original.quantity_change <
+                                                0,
+                                        })}
+                                    >
+                                        {row.getVisibleCells().map((cell) => (
+                                            <TableCell
+                                                key={cell.id}
+                                                className={getDensityPadding(
+                                                    density
                                                 )}
-                                            </div>
-                                        </TableCell>
+                                            >
+                                                {flexRender(
+                                                    cell.column.columnDef.cell,
+                                                    cell.getContext()
+                                                )}
+                                            </TableCell>
+                                        ))}
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={columns.length}
+                                        className="h-48 text-center"
+                                    >
+                                        <div className="flex flex-col items-center justify-center text-muted-foreground space-y-3">
+                                            <PackageSearch className="h-12 w-12 text-muted-foreground/50" />
+                                            <p className="font-medium">
+                                                No transactions found
+                                            </p>
+                                            <p className="text-sm">
+                                                Try adjusting filters or the
+                                                date range.
+                                            </p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
-                    <div className="flex items-center justify-between space-x-2 py-4 px-1">
-                        <div className="text-sm text-muted-foreground flex-1">
-                            Showing{" "}
-                            {table.getRowModel().rows.length > 0
-                                ? table.getState().pagination.pageIndex *
-                                      table.getState().pagination.pageSize +
-                                  1
-                                : 0}
-                            -{" "}
-                            {Math.min(
-                                (table.getState().pagination.pageIndex + 1) *
-                                    table.getState().pagination.pageSize,
-                                table.getFilteredRowModel().rows.length
-                            )}{" "}
-                            of {table.getFilteredRowModel().rows.length}{" "}
-                            transaction(s)
-                            {activeFilters &&
-                                ` (filtered from ${transactions.length} total)`}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => table.previousPage()}
-                                disabled={!table.getCanPreviousPage()}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                                <span className="sr-only">Previous page</span>
-                            </Button>
-                            <span className="text-sm font-medium px-2">
-                                Page {table.getState().pagination.pageIndex + 1}{" "}
-                                of {table.getPageCount() || 1}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => table.nextPage()}
-                                disabled={!table.getCanNextPage()}
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                                <span className="sr-only">Next page</span>
-                            </Button>
-                        </div>
+                <div className="flex items-center justify-between space-x-2 py-4 px-1">
+                    <div className="text-sm text-muted-foreground flex-1">
+                        Showing{" "}
+                        {table.getRowModel().rows.length > 0
+                            ? table.getState().pagination.pageIndex *
+                                  table.getState().pagination.pageSize +
+                              1
+                            : 0}
+                        -{" "}
+                        {Math.min(
+                            (table.getState().pagination.pageIndex + 1) *
+                                table.getState().pagination.pageSize,
+                            table.getFilteredRowModel().rows.length
+                        )}{" "}
+                        of {table.getFilteredRowModel().rows.length}{" "}
+                        transaction(s)
+                        {activeFilters &&
+                            ` (filtered from ${transactionsWithBalance.length} total)`}
                     </div>
-                </CardContent>
-            </Card>
-        </TooltipProvider>
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => table.previousPage()}
+                            disabled={!table.getCanPreviousPage()}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            <span className="sr-only">Previous page</span>
+                        </Button>
+                        <span className="text-sm font-medium px-2">
+                            Page {table.getState().pagination.pageIndex + 1} of{" "}
+                            {table.getPageCount() || 1}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => table.nextPage()}
+                            disabled={!table.getCanNextPage()}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                            <span className="sr-only">Next page</span>
+                        </Button>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }

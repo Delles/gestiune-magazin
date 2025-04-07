@@ -10,7 +10,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ArrowUpDown, Package } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { InventoryItem } from "../../types/types";
 import { StockQuantityVisual } from "./StockQuantityVisual";
 
@@ -148,6 +148,23 @@ export const columns: ColumnDef<InventoryItem>[] = [
         // enableColumnFilter: true, // Can be enabled later if needed directly on column
     },
     {
+        accessorKey: "updated_at",
+        header: ({ column }) => (
+            <SortableHeader column={column} align="left">
+                Last Updated
+            </SortableHeader>
+        ),
+        cell: ({ row }) => {
+            const date = row.getValue("updated_at") as string | null;
+            return (
+                <span className="text-muted-foreground whitespace-nowrap text-xs w-36">
+                    {formatDate(date, "PPp")}
+                </span>
+            );
+        },
+        enableSorting: true,
+    },
+    {
         accessorKey: "average_purchase_price",
         header: ({ column }) => (
             <SortableHeader column={column} align="right">
@@ -155,7 +172,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
             </SortableHeader>
         ),
         cell: ({ row }) => (
-            <div className="text-right font-mono text-sm">
+            <div className="text-right font-mono text-sm w-28">
                 {formatCurrency(row.getValue("average_purchase_price"))}
             </div>
         ),
@@ -168,7 +185,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
             </SortableHeader>
         ),
         cell: ({ row }) => (
-            <div className="text-right font-mono text-sm">
+            <div className="text-right font-mono text-sm w-28">
                 {formatCurrency(row.getValue("last_purchase_price"))}
             </div>
         ),
@@ -181,10 +198,33 @@ export const columns: ColumnDef<InventoryItem>[] = [
             </SortableHeader>
         ),
         cell: ({ row }) => (
-            <div className="text-right font-mono text-sm font-medium text-green-600 dark:text-green-400">
+            <div className="text-right font-mono text-sm font-medium text-green-600 dark:text-green-400 w-28">
                 {formatCurrency(row.getValue("selling_price"))}
             </div>
         ),
+    },
+    {
+        id: "stock_value",
+        accessorFn: (row) => {
+            const quantity = row.stock_quantity ?? 0;
+            const avgPrice = row.average_purchase_price ?? 0;
+            return quantity * avgPrice;
+        },
+        header: ({ column }) => (
+            <SortableHeader column={column} align="right">
+                Stock Value
+            </SortableHeader>
+        ),
+        cell: ({ row }) => {
+            const value = row.getValue("stock_value") as number;
+            return (
+                <div className="text-right font-mono text-sm w-32">
+                    {formatCurrency(value)}
+                </div>
+            );
+        },
+        enableSorting: true,
+        sortingFn: "basic", // Explicitly use basic numeric sort
     },
     {
         id: "actions",
@@ -192,7 +232,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
             // Cell content is handled by DisplayRow/InlineEditFormRow in the main component
             return null;
         },
-        header: () => <div className="text-right pr-2">Actions</div>,
+        header: () => <div className="text-right pr-2 w-28">Actions</div>,
         enableHiding: false,
     },
 ];

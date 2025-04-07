@@ -1,57 +1,40 @@
 // src/lib/validation/inventory-schemas.ts
 import { z } from "zod";
 
-// Define ALL transaction types (including initial-stock for logging etc.)
+// Define ALL transaction types (intended for DB enum - might become outdated)
+// Consider removing if DB enum directly uses the form types
 export const transactionTypeEnum = z.enum([
     "purchase",
-    "return",
-    "inventory-correction-add",
-    "other-addition",
+    "return", // Note: Not in current forms
+    "inventory-correction-add", // Note: Form uses correction-add
+    "other-addition", // Note: Not in current forms
     "sale",
-    "damaged",
-    "loss",
-    "expired",
-    "inventory-correction-remove",
-    "other-removal",
-    "initial-stock", // Kept here for a complete list if needed elsewhere
+    "damaged", // Note: Form uses write-off
+    "loss", // Note: Form uses write-off
+    "expired", // Note: Form uses write-off
+    "inventory-correction-remove", // Note: Form uses correction-remove
+    "other-removal", // Note: Not in current forms
+    "initial-stock",
 ]);
 export type TransactionType = z.infer<typeof transactionTypeEnum>;
 
-// Define transaction types VALID for stock adjustments (excludes initial-stock)
-export const stockAdjustmentTransactionTypeEnum = z.enum([
+// Define transaction types originating DIRECTLY from the stock adjustment forms
+export const stockAdjustmentFormTransactionTypeEnum = z.enum([
     "purchase",
-    "return",
-    "inventory-correction-add",
-    "other-addition",
+    "correction-add",
     "sale",
-    "damaged",
-    "loss",
-    "expired",
-    "inventory-correction-remove",
-    "other-removal",
+    "write-off",
+    "correction-remove",
 ]);
-export type StockAdjustmentTransactionType = z.infer<
-    typeof stockAdjustmentTransactionTypeEnum
+export type StockAdjustmentFormTransactionType = z.infer<
+    typeof stockAdjustmentFormTransactionTypeEnum
 >;
 
-// NEW: Define simplified transaction types for increase stock
-export const increaseStockTransactionTypeEnum = z.enum([
-    "purchase",
-    "correction-add", // Simplified from inventory-correction-add
-]);
-export type IncreaseStockTransactionType = z.infer<
-    typeof increaseStockTransactionTypeEnum
->;
-
-// NEW: Define simplified transaction types for decrease stock
-export const decreaseStockTransactionTypeEnum = z.enum([
-    "sale",
-    "write-off", // Combines damaged, loss, expired into one
-    "correction-remove", // Simplified from inventory-correction-remove
-]);
-export type DecreaseStockTransactionType = z.infer<
-    typeof decreaseStockTransactionTypeEnum
->;
+// Define transaction types VALID for the backend stock adjustment API endpoint
+// This should now mirror the form types exactly.
+export const stockAdjustmentTransactionTypeEnum =
+    stockAdjustmentFormTransactionTypeEnum;
+export type StockAdjustmentTransactionType = StockAdjustmentFormTransactionType;
 
 // Base schema for properties editable via the Edit Item form
 const baseItemEditableSchema = z.object({
@@ -163,7 +146,7 @@ export const inventoryItemReorderPointUpdateSchema = z.object({
         ),
 });
 
-// NEW: Schema for increase stock form
+// NEW: Schema for increase stock form (Uses the unified form enum)
 export const increaseStockSchema = z
     .object({
         quantity: z
@@ -171,7 +154,7 @@ export const increaseStockSchema = z
                 invalid_type_error: "Quantity must be a number",
             })
             .min(0.01, "Quantity must be greater than zero"),
-        transactionType: increaseStockTransactionTypeEnum,
+        transactionType: stockAdjustmentFormTransactionTypeEnum, // Use unified enum
         purchasePrice: z
             .number()
             .min(0, "Purchase price must be non-negative")
@@ -210,7 +193,7 @@ export const increaseStockSchema = z
             .default(() => new Date()),
     })
     .superRefine((data, ctx) => {
-        // If transaction type is purchase, either purchasePrice OR totalCost should be provided
+        // Refinement logic specific to increase types (purchase, correction-add)
         if (data.transactionType === "purchase" && data.quantity > 0) {
             const hasPurchasePrice =
                 data.purchasePrice !== null && data.purchasePrice !== undefined;
@@ -227,20 +210,19 @@ export const increaseStockSchema = z
             }
         }
 
-        // If transaction type is correction-add, reason is required
         if (
             data.transactionType === "correction-add" &&
             (!data.reason || data.reason.trim() === "")
         ) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Reason is required for inventory corrections",
+                message: "Reason is required for inventory corrections (add)",
                 path: ["reason"],
             });
         }
     });
 
-// NEW: Schema for decrease stock form
+// NEW: Schema for decrease stock form (Uses the unified form enum)
 export const decreaseStockSchema = z
     .object({
         quantity: z
@@ -248,7 +230,7 @@ export const decreaseStockSchema = z
                 invalid_type_error: "Quantity must be a number",
             })
             .min(0.01, "Quantity must be greater than zero"),
-        transactionType: decreaseStockTransactionTypeEnum,
+        transactionType: stockAdjustmentFormTransactionTypeEnum, // Use unified enum
         sellingPrice: z
             .number()
             .min(0, "Selling price must be non-negative")
@@ -258,9 +240,9 @@ export const decreaseStockSchema = z
                     .regex(/^\d*\.?\d*$/)
                     .transform(Number)
             )
-            .optional()
+            .optional() // Price might not apply to correction-remove
             .nullable(),
-        itemCost: z
+        itemCost: z // Specific to write-off
             .number()
             .min(0, "Item cost must be non-negative")
             .or(
@@ -271,7 +253,7 @@ export const decreaseStockSchema = z
             )
             .optional()
             .nullable(),
-        totalValue: z
+        totalValue: z // Calculated total (sale revenue or write-off cost)
             .number()
             .min(0, "Total value must be non-negative")
             .or(
@@ -298,7 +280,7 @@ export const decreaseStockSchema = z
             .default(() => new Date()),
     })
     .superRefine((data, ctx) => {
-        // For sale, either sellingPrice OR totalValue should be provided
+        // Refinement logic specific to decrease types (sale, write-off, correction-remove)
         if (data.transactionType === "sale" && data.quantity > 0) {
             const hasSellingPrice =
                 data.sellingPrice !== null && data.sellingPrice !== undefined;
@@ -315,7 +297,6 @@ export const decreaseStockSchema = z
             }
         }
 
-        // For write-offs, either itemCost OR totalValue should be provided, and reason is required
         if (data.transactionType === "write-off") {
             const hasItemCost =
                 data.itemCost !== null && data.itemCost !== undefined;
@@ -340,24 +321,25 @@ export const decreaseStockSchema = z
             }
         }
 
-        // For correction-remove, reason is required
         if (
             data.transactionType === "correction-remove" &&
             (!data.reason || data.reason.trim() === "")
         ) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Reason is required for inventory corrections",
+                message:
+                    "Reason is required for inventory corrections (remove)",
                 path: ["reason"],
             });
         }
     });
 
-// Schema for stock adjustment form (used by StockAdjustmentForm component)
+// Schema for the backend API stock adjustment endpoint
+// Uses the exact same transaction types as the forms now.
 export const stockAdjustmentSchema = z
     .object({
-        transactionType: stockAdjustmentTransactionTypeEnum, // Use the specific enum for adjustments
-        quantity: z
+        transactionType: stockAdjustmentFormTransactionTypeEnum, // Use unified enum
+        quantity: z // Quantity is required for all adjustments
             .number({
                 invalid_type_error: "Quantity must be a number",
             })
@@ -365,18 +347,17 @@ export const stockAdjustmentSchema = z
             .or(
                 z
                     .string()
-                    // Ensure the string represents a positive number (integer or decimal)
                     .regex(
-                        /^(?!0\.?0*$)\d*\.?\d+$/,
+                        /^(?!0\.0*$)\d*\.?\d+$/,
                         "Quantity must be a positive number"
                     )
                     .transform(Number)
                     .refine((n) => n > 0, {
                         message: "Quantity must be greater than zero",
                     })
-            )
-            .optional(),
-        purchasePrice: z // Needed for 'purchase'/'return' type adjustments
+            ),
+        // Price fields are optional at this top level, refined below
+        purchasePrice: z
             .number()
             .min(0, "Purchase price must be non-negative")
             .or(
@@ -387,7 +368,7 @@ export const stockAdjustmentSchema = z
             )
             .optional()
             .nullable(),
-        sellingPrice: z // Needed for 'sale'/'damaged' etc. value tracking
+        sellingPrice: z
             .number()
             .min(0, "Selling price must be non-negative")
             .or(
@@ -398,9 +379,9 @@ export const stockAdjustmentSchema = z
             )
             .optional()
             .nullable(),
-        totalPrice: z // Can be calculated or entered
+        totalPrice: z // Generic total price/value
             .number()
-            .min(0, "Total price must be non-negative")
+            .min(0, "Total price/value must be non-negative")
             .or(
                 z
                     .string()
@@ -420,25 +401,24 @@ export const stockAdjustmentSchema = z
             .optional()
             .nullable(),
         date: z
-            .union([
-                // Accept Date object or ISO string
-                z.date(),
-                z.string().datetime({ offset: true }), // Expect ISO 8601 format
-            ])
+            .union([z.date(), z.string().datetime({ offset: true })])
             .optional()
-            .default(() => new Date()), // Default to now if not provided
+            .default(() => new Date()),
     })
     .superRefine((data, ctx) => {
-        const { transactionType, reason } = data;
+        const {
+            transactionType,
+            reason,
+            purchasePrice,
+            sellingPrice,
+            totalPrice,
+        } = data;
 
-        const reasonRequiredTypes: StockAdjustmentTransactionType[] = [
-            "inventory-correction-add",
-            "other-addition",
-            "damaged",
-            "loss",
-            "expired",
-            "inventory-correction-remove",
-            "other-removal",
+        // Reason required for corrections and write-offs
+        const reasonRequiredTypes: StockAdjustmentFormTransactionType[] = [
+            "correction-add",
+            "write-off",
+            "correction-remove",
         ];
 
         if (
@@ -452,8 +432,73 @@ export const stockAdjustmentSchema = z
             });
         }
 
-        // Could add price field validation refinements here too if needed
-        // e.g., ensure purchasePrice exists for 'purchase'
+        // Price validation for specific types
+        if (transactionType === "purchase") {
+            if (
+                purchasePrice === null ||
+                purchasePrice === undefined ||
+                purchasePrice < 0
+            ) {
+                // Check totalPrice as alternative only if purchasePrice is missing/invalid
+                if (
+                    totalPrice === null ||
+                    totalPrice === undefined ||
+                    totalPrice < 0
+                ) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message:
+                            "Valid Purchase Price (or Total Price) is required for 'purchase' transactions.",
+                        path: ["purchasePrice"],
+                    });
+                }
+            }
+        }
+        // Note: Removed 'return' check as it's not in form types
+
+        if (transactionType === "sale") {
+            if (
+                sellingPrice === null ||
+                sellingPrice === undefined ||
+                sellingPrice < 0
+            ) {
+                // Check totalPrice as alternative
+                if (
+                    totalPrice === null ||
+                    totalPrice === undefined ||
+                    totalPrice < 0
+                ) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message:
+                            "Valid Selling Price (or Total Price) is required for 'sale' transactions.",
+                        path: ["sellingPrice"],
+                    });
+                }
+            }
+        }
+
+        if (transactionType === "write-off") {
+            // For write-off, expect purchasePrice (as item cost) or totalPrice
+            if (
+                purchasePrice === null ||
+                purchasePrice === undefined ||
+                purchasePrice < 0
+            ) {
+                if (
+                    totalPrice === null ||
+                    totalPrice === undefined ||
+                    totalPrice < 0
+                ) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message:
+                            "Valid Item Cost (as Purchase Price or Total Price) is required for 'write-off' transactions.",
+                        path: ["purchasePrice"],
+                    });
+                }
+            }
+        }
     });
 
 // Export types derived from schemas
@@ -467,7 +512,5 @@ export type InventoryItemReorderPointUpdateFormValues = z.infer<
     typeof inventoryItemReorderPointUpdateSchema
 >;
 export type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentSchema>;
-
-// NEW: Export types for increase and decrease stock forms
 export type IncreaseStockFormValues = z.infer<typeof increaseStockSchema>;
 export type DecreaseStockFormValues = z.infer<typeof decreaseStockSchema>;

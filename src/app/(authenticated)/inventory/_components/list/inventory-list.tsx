@@ -1,7 +1,7 @@
 // src/app/(authenticated)/inventory/_components/inventory-list.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation"; // Keep useRouter
 import {
     useReactTable,
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip"; // Keep provider for rows
-import { Trash2, Loader2, Inbox } from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog,
@@ -53,14 +53,23 @@ import {
     updateItemReorderPoint,
 } from "../../_data/api";
 import { cn } from "@/lib/utils"; // Ensure cn is imported
+import { formatCurrency } from "@/lib/utils"; // Add formatCurrency import
 
 // --- Import Child Components ---
 import { columns } from "./inventory-columns";
 import { InventoryTableToolbar } from "./inventory-table-toolbar"; // Add import
 import { InventoryBulkActions } from "./inventory-bulk-actions";
 import { InventoryTablePagination } from "./inventory-table-pagination";
-import { format as formatDate, parseISO } from "date-fns"; // Import date-fns functions
-import { ro } from "date-fns/locale"; // Import Romanian locale
+// START: Import new filter types from sidebar
+import {
+    StockValueRangeFilter,
+    ReorderPointFilter,
+} from "./inventory-filter-sidebar";
+// END: Import new filter types
+
+// Remove unused date-fns imports
+// import { format as formatDate, parseISO } from "date-fns";
+// import { ro } from "date-fns/locale";
 // Import popover content
 
 export default function InventoryList() {
@@ -73,16 +82,26 @@ export default function InventoryList() {
         "compact" | "normal" | "comfortable"
     >("normal");
 
+    // START: Add state for new filters
+    const [stockValueRange, setStockValueRange] =
+        useState<StockValueRangeFilter>({ min: null, max: null });
+    const [reorderPointFilter, setReorderPointFilter] =
+        useState<ReorderPointFilter>(null); // null = any
+    // END: Add state for new filters
+
     // Dialog/Sheet/Popover states
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [adjustingStockItem, setAdjustingStockItem] =
         useState<InventoryItem | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+    // TODO: Reinstate when Add Item functionality is implemented
+    // const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
     const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
     const [reorderPointItemId, setReorderPointItemId] = useState<string | null>(
         null
     );
+    // Remove unused state for now
+    // const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
 
     const queryClient = useQueryClient();
     const router = useRouter();
@@ -212,9 +231,34 @@ export default function InventoryList() {
     });
     // --- End Mutations ---
 
+    // START: Add handlers for new filters
+    const handleStockValueRangeChange = (
+        type: "min" | "max",
+        value: string
+    ) => {
+        const numericValue = value === "" ? null : parseFloat(value);
+        setStockValueRange((prev) => ({
+            ...prev,
+            [type]: numericValue,
+        }));
+    };
+
+    const handleReorderPointFilterChange = (checked: boolean) => {
+        // If checked is true, filter for items with a reorder point (filter = true)
+        // If checked is false, reset the filter (filter = null)
+        setReorderPointFilter(checked ? true : null);
+    };
+    // END: Add handlers for new filters
+
+    // --- Filtering Logic ---
+    // Filtering will be handled by:
+    // 1. TanStack Table state (columnFilters, globalFilter)
+    // 2. Post-filtering logic applied to `table.getFilteredRowModel().rows` for custom filters
+    // --- End Filtering Logic ---
+
     // --- Table Instance ---
-    const table = useReactTable({
-        data: inventoryItems,
+    const table = useReactTable<InventoryItem>({
+        data: inventoryItems, // Use the raw data
         columns,
         state: {
             sorting,
@@ -228,15 +272,66 @@ export default function InventoryList() {
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: handleVisibilityChange,
+        initialState: { pagination: { pageSize: 10 } },
+        onGlobalFilterChange: setGlobalFilter,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getFacetedRowModel: getFacetedRowModel(),
         getFacetedUniqueValues: getFacetedUniqueValues(),
-        initialState: { pagination: { pageSize: 10 } },
     });
     // --- End Table Instance ---
+
+    // --- Post-Filtering for Custom Logic ---
+    const filteredRows = table.getFilteredRowModel().rows;
+
+    const finalFilteredRows = useMemo(() => {
+        return filteredRows.filter((row: Row<InventoryItem>) => {
+            const item = row.original;
+            // Stock Value Filter
+            const stockValue =
+                (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
+            if (
+                stockValueRange.min !== null &&
+                stockValue < stockValueRange.min
+            )
+                return false;
+            if (
+                stockValueRange.max !== null &&
+                stockValue > stockValueRange.max
+            )
+                return false;
+
+            // Has Reorder Point Filter
+            if (
+                reorderPointFilter === true &&
+                (item.reorder_point === null ||
+                    item.reorder_point === undefined)
+            )
+                return false;
+            // Add logic for reorderPointFilter === false if needed
+
+            return true; // Item passes all custom filters
+        });
+    }, [
+        filteredRows, // Depend on the extracted variable
+        stockValueRange,
+        reorderPointFilter,
+    ]);
+
+    // --- Calculated Values ---
+    const totalInventoryValue = useMemo(() => {
+        // Calculate based on the final filtered rows
+        return finalFilteredRows.reduce(
+            (sum: number, row: Row<InventoryItem>) => {
+                const quantity = row.original.stock_quantity ?? 0;
+                const avgPrice = row.original.average_purchase_price ?? 0;
+                return sum + quantity * avgPrice;
+            },
+            0
+        );
+    }, [finalFilteredRows]);
 
     // --- Filter Logic ---
     const categoryFilterValue =
@@ -286,11 +381,13 @@ export default function InventoryList() {
     const clearAllFilters = () => {
         setColumnFilters([]);
         setGlobalFilter("");
-        router.push("/inventory"); // Navigate to clear URL params
+        setStockValueRange({ min: null, max: null });
+        setReorderPointFilter(null);
+        router.push("/inventory");
     };
 
-    const activeFilterCount = table.getState().columnFilters.length;
-    const hasActiveFilters = activeFilterCount > 0 || globalFilter !== "";
+    // Remove commented out variable
+    // const hasActiveFilters = table.getState().columnFilters.length > 0;
     // --- End Filter Logic ---
 
     // --- Helper Handlers ---
@@ -345,82 +442,81 @@ export default function InventoryList() {
         setDeletingItem(null);
     };
 
+    // TODO: Reinstate when export functionality is implemented/refined
+    /*
     const handleExportCsv = () => {
-        const rows = table.getFilteredRowModel().rows; // Get filtered/sorted rows
+        const rows = table.getFilteredRowModel().rows;
         if (!rows.length) {
-            toast.info("No data available to export.");
+            toast.warning("No data to export.");
             return;
         }
-
-        const formatRoDate = (dateString: string | null): string => {
-            if (!dateString) return "";
-            try {
-                const date = parseISO(dateString);
-                return formatDate(date, "dd.MM.yyyy HH:mm:ss", { locale: ro });
-            } catch (error) {
-                console.error("Error formatting date:", dateString, error);
-                return dateString; // Return original string on error
-            }
-        };
 
         const headers = [
             "ID",
             "Item Name",
             "Category",
-            "Unit",
             "Stock Quantity",
-            "Reorder Point",
+            "Unit",
+            "Avg Purch Price",
+            "Last Purch Price",
             "Selling Price",
-            "Avg. Purchase Price",
-            "Last Purchase Price",
-            "Description",
+            "Stock Value",
+            "Reorder Point",
             "Created At",
-            "Updated At",
+            "Last Updated",
         ];
 
-        // Use visible columns to potentially influence export?
-        // For simplicity, exporting a standard set for now.
+        const formatRoDate = (dateString: string | null): string => {
+            if (!dateString) return "";
+            try {
+                return formatDate(parseISO(dateString), "dd.MM.yyyy HH:mm", {
+                    locale: ro,
+                });
+            } catch {
+                return dateString; // fallback
+            }
+        };
+
         const data = rows.map((row) => {
             const item = row.original;
+            const stockValue = (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
             return [
-                item.id,
-                `"${item.item_name.replace(/"/g, '""')}"`, // Escape quotes
-                item.category_name || "Uncategorized",
-                item.unit,
-                item.stock_quantity,
-                item.reorder_point ?? "", // Handle null
-                item.selling_price,
-                item.average_purchase_price ?? "", // Handle null
-                item.last_purchase_price ?? "", // Handle null
-                `"${(item.description || "").replace(/"/g, '""')}"`, // Escape quotes
-                formatRoDate(item.created_at), // Format date
-                formatRoDate(item.updated_at), // Format date
+                `"${item.id}"`, // Ensure ID is treated as string, even if numeric
+                `"${item.item_name?.replace(/'"'/g, "''") ?? ""}"`, // Escape quotes
+                `"${item.category_name ?? "Uncategorized"}"`, // Handle null category
+                item.stock_quantity ?? 0,
+                `"${item.unit ?? ""}"`, // Handle null unit
+                item.average_purchase_price ?? 0,
+                item.last_purchase_price ?? 0,
+                item.selling_price ?? 0,
+                stockValue,
+                item.reorder_point ?? "N/A",
+                `"${formatRoDate(item.created_at)}"`, // Format date
+                `"${formatRoDate(item.updated_at)}"`, // Format date
             ].join(",");
         });
 
-        const csvContent = [headers.join(","), ...data].join("\n");
+        const csvContent = [
+            headers.join(","),
+            ...data,
+        ].join("\n");
 
-        // Create CSV file and trigger download
-        try {
-            const blob = new Blob([csvContent], {
-                type: "text/csv;charset=utf-8;",
-            });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-            link.setAttribute("download", `inventory_export_${timestamp}.csv`);
-            link.style.visibility = "hidden";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            toast.success("CSV export started successfully.");
-        } catch (error) {
-            console.error("CSV Export Error:", error);
-            toast.error("Failed to export data as CSV.");
-        }
+        const blob = new Blob(["\uFEFF" + csvContent], { // Add BOM for Excel
+            type: "text/csv;charset=utf-8;",
+        });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `inventory-export-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Data exported to CSV.");
     };
+    */
 
     // --- Loading & Error States ---
     const isLoading = isLoadingItems || isLoadingCategories;
@@ -450,26 +546,49 @@ export default function InventoryList() {
 
     return (
         <TooltipProvider>
-            <div className="space-y-4">
+            <div className={cn("space-y-4 p-1", density)}>
+                {/* Render Total Value Above Toolbar */}
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                    <h2 className="text-2xl font-semibold tracking-tight">
+                        Inventory List
+                    </h2>
+                    <div className="text-right">
+                        <span className="text-sm text-muted-foreground">
+                            Total Stock Value (Filtered):{" "}
+                        </span>
+                        <span className="font-semibold text-lg">
+                            {formatCurrency(totalInventoryValue)}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Toolbar */}
                 <InventoryTableToolbar
                     table={table}
                     categories={categories}
-                    density={density}
-                    handleDensityChange={handleDensityChange}
                     globalFilter={globalFilter}
                     setGlobalFilter={setGlobalFilter}
-                    clearAllFilters={clearAllFilters}
-                    hasActiveFilters={hasActiveFilters}
-                    activeFilterCount={activeFilterCount}
-                    isAddSheetOpen={isAddSheetOpen}
-                    setIsAddSheetOpen={setIsAddSheetOpen}
+                    density={density}
+                    // @ts-expect-error // TODO: Fix InventoryTableToolbarProps to include setDensity
+                    setDensity={handleDensityChange}
+                    // START: Pass new filters state and handlers
+                    stockValueRange={stockValueRange}
+                    reorderPointFilter={reorderPointFilter}
+                    handleStockValueRangeChange={handleStockValueRangeChange}
+                    handleReorderPointFilterChange={
+                        handleReorderPointFilterChange
+                    }
+                    // END: Pass new filters state and handlers
                     filterPopoverOpen={filterPopoverOpen}
                     setFilterPopoverOpen={setFilterPopoverOpen}
                     handleCategoryFilterChange={handleCategoryFilterChange}
                     handleStockFilterChange={handleStockFilterChange}
-                    onExportCsv={handleExportCsv}
+                    clearAllFilters={clearAllFilters}
+                    categoryFilterValue={categoryFilterValue}
+                    stockFilterValue={stockFilterValue}
                 />
 
+                {/* Bulk Actions Bar (shown when items selected) */}
                 <InventoryBulkActions
                     selectedRowCount={table.getSelectedRowModel().rows.length}
                     onDelete={handleDeleteSelected}
@@ -511,10 +630,30 @@ export default function InventoryList() {
                             ))}
                         </TableHeader>
                         <TableBody>
-                            {table.getRowModel().rows?.length ? (
-                                table.getRowModel().rows.map((row) => {
-                                    const isEditing =
-                                        row.original.id === editingRowId;
+                            {isLoadingItems || isLoadingCategories ? (
+                                // Skeleton Loading Rows
+                                Array.from({
+                                    length: table.getState().pagination
+                                        .pageSize,
+                                }).map((_, index) => (
+                                    <TableRow key={`skeleton-${index}`}>
+                                        {table.getAllColumns().map((column) => (
+                                            <TableCell
+                                                key={column.id}
+                                                className={getDensityPadding(
+                                                    density
+                                                )} // Apply density
+                                            >
+                                                <Skeleton className="h-5 w-full" />
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : finalFilteredRows.length ? (
+                                // Use finalFilteredRows for rendering
+                                finalFilteredRows.map((row) => {
+                                    const item = row.original;
+                                    const isEditing = editingRowId === item.id;
                                     type TanStackRow = Row<InventoryItem>;
 
                                     if (isEditing) {
@@ -564,21 +703,13 @@ export default function InventoryList() {
                                     }
                                 })
                             ) : (
+                                // No results row
                                 <TableRow>
                                     <TableCell
                                         colSpan={columns.length}
-                                        className="h-24 text-center text-muted-foreground"
+                                        className="h-24 text-center"
                                     >
-                                        <div className="flex flex-col items-center justify-center gap-2">
-                                            <Inbox className="h-10 w-10 text-muted-foreground/50" />
-                                            <p className="font-medium">
-                                                No items found.
-                                            </p>
-                                            <p className="text-sm">
-                                                Add your first inventory item to
-                                                get started.
-                                            </p>
-                                        </div>
+                                        No results found.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -586,6 +717,7 @@ export default function InventoryList() {
                     </Table>
                 </div>
 
+                {/* Pagination */}
                 <InventoryTablePagination table={table} />
 
                 {/* Stock Adjustment Dialog */}
@@ -702,3 +834,17 @@ export default function InventoryList() {
         </TooltipProvider>
     );
 }
+
+// --- Helper Functions ---
+
+const getDensityPadding = (density: string) => {
+    switch (density) {
+        case "compact":
+            return "py-1 px-2 text-xs";
+        case "comfortable":
+            return "py-3 px-2";
+        case "normal":
+        default:
+            return "py-2 px-2";
+    }
+};

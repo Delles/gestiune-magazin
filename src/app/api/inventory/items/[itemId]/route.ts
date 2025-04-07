@@ -7,18 +7,17 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         itemId: string;
-    };
+    }>;
 }
 
 // GET handler for fetching a specific inventory item
-export async function GET(request: NextRequest, context: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
     noStore(); // Prevent caching
     try {
-        // Await params in Next.js 15
-        const params = await Promise.resolve(context.params);
-        const itemId = params.itemId;
+        // Wait for params to ensure they're available in Next.js 15
+        const { itemId } = await params;
 
         // Create a Supabase client with the async pattern
         const supabase = await createRouteHandlerSupabaseClient();
@@ -74,12 +73,11 @@ export async function GET(request: NextRequest, context: RouteParams) {
 }
 
 // PUT handler for updating a specific inventory item
-export async function PUT(request: NextRequest, context: RouteParams) {
+export async function PUT(request: NextRequest, { params }: RouteParams) {
     noStore(); // Prevent caching
     try {
-        // Await params in Next.js 15
-        const params = await Promise.resolve(context.params);
-        const itemId = params.itemId;
+        // Wait for params to ensure they're available in Next.js 15
+        const { itemId } = await params;
 
         // Parse the request body
         const body = await request.json();
@@ -169,12 +167,11 @@ export async function PUT(request: NextRequest, context: RouteParams) {
 }
 
 // PATCH handler for updating only the reorder_point
-export async function PATCH(request: NextRequest, context: RouteParams) {
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
     noStore(); // Prevent caching
     try {
-        // Await params in Next.js 15
-        const params = await Promise.resolve(context.params);
-        const itemId = params.itemId;
+        // Wait for params to ensure they're available in Next.js 15
+        const { itemId } = await params;
 
         // Parse the request body
         const body = await request.json();
@@ -265,12 +262,11 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
 }
 
 // DELETE handler for deleting a specific inventory item
-export async function DELETE(request: NextRequest, context: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
     noStore(); // Prevent caching
     try {
-        // Await params in Next.js 15
-        const params = await Promise.resolve(context.params);
-        const itemId = params.itemId;
+        // Wait for params to ensure they're available in Next.js 15
+        const { itemId } = await params;
 
         // Create a Supabase client with the async pattern
         const supabase = await createRouteHandlerSupabaseClient();

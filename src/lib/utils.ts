@@ -92,3 +92,20 @@ export const formatNumber = (
         return String(value); // Basic fallback to string conversion
     }
 };
+
+/**
+ * Formats a numeric value as a percentage string.
+ *
+ * @param value The number to format (expects value like 50 for 50%). Can be null or undefined.
+ * @param fractionDigits Number of decimal places to show (default: 1).
+ * @returns The formatted percentage string (e.g., "50.0%") or "N/A" if the value is null, undefined, or non-finite.
+ */
+export const formatPercentage = (
+    value: number | null | undefined,
+    fractionDigits: number = 1
+): string => {
+    if (value === null || value === undefined || !isFinite(value)) {
+        return "N/A";
+    }
+    return `${value.toFixed(fractionDigits)}%`;
+};

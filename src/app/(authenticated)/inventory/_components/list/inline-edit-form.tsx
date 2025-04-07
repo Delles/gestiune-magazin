@@ -100,16 +100,6 @@ const InlineEditFormRow = React.memo(
             },
         });
 
-        const onSubmit = (values: InventoryItemUpdateFormValues) => {
-            const dataToSend = {
-                ...values,
-                categoryId:
-                    values.categoryId === "null" ? null : values.categoryId,
-                description: values.description ?? item.description ?? null,
-            };
-            mutation.mutate(dataToSend);
-        };
-
         // Function to render cell content based on column ID
         const renderCellContent = (columnId: string) => {
             const densityTextClasses = {

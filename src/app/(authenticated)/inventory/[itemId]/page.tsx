@@ -7,29 +7,29 @@ import ItemDetailHeaderSkeleton from "./_components/item-detail-header-skeleton"
 import { Skeleton } from "@/components/ui/skeleton";
 import { PrimaryMetricsSkeleton } from "./_components/PrimaryMetricsSkeleton";
 import { ItemDetailsClientSection } from "./_components/item-details-client-section";
+import { unstable_noStore as noStore } from "next/cache";
 
 export const metadata: Metadata = {
     title: "Inventory Item Details",
     description: "View and manage inventory item details and stock history",
 };
 
+interface PageProps {
+    params: Promise<{ itemId: string }>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
 type FetchedItem = Tables<"InventoryItems"> & {
     categories: { name: string | null } | null;
 };
 
-type PurchaseTransaction = {
-    id: string;
-    created_at: string;
-    purchase_price: number | null;
-};
+export default async function InventoryItemPage(props: PageProps) {
+    noStore(); // Prevent caching for dynamic data
 
-export default async function InventoryItemPage({
-    params,
-}: {
-    params: { itemId: string };
-}) {
-    const awaitedParams = await params;
-    const { itemId } = awaitedParams;
+    // In Next.js 15, params is a Promise that needs to be awaited
+    const params = await props.params;
+    const { itemId } = params;
+
     const supabase = await createServerClient();
 
     const { data: item, error: itemError } = await supabase
@@ -43,23 +43,38 @@ export default async function InventoryItemPage({
         .eq("id", itemId)
         .maybeSingle<FetchedItem>();
 
-    const { data: purchaseHistory, error: historyError } = await supabase
+    const { data: lastTwoPurchases, error: historyError } = await supabase
         .from("StockTransactions")
         .select("id, created_at, purchase_price")
         .eq("item_id", itemId)
         .in("transaction_type", ["purchase", "initial-stock"])
+        .not("purchase_price", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(2);
+
+    const { data: transactionHistory, error: fullHistoryError } = await supabase
+        .from("StockTransactions")
+        .select("*")
+        .eq("item_id", itemId)
         .order("created_at", { ascending: false })
         .limit(10);
 
-    if (itemError || historyError || !item) {
+    if (itemError || historyError || fullHistoryError || !item) {
         console.error(
             "Error fetching item page data:",
-            itemError?.message || historyError?.message || "Item not found"
+            itemError?.message ||
+                historyError?.message ||
+                fullHistoryError?.message ||
+                "Item not found"
         );
         notFound();
     }
 
-    const initialPurchaseHistory: PurchaseTransaction[] = purchaseHistory ?? [];
+    const secondLastPurchasePrice =
+        lastTwoPurchases?.[1]?.purchase_price ?? null;
+
+    const initialTransactionHistory: Tables<"StockTransactions">[] =
+        transactionHistory ?? [];
 
     return (
         <div className="space-y-6">
@@ -81,7 +96,8 @@ export default async function InventoryItemPage({
                 <ItemDetailsClientSection
                     item={item}
                     itemId={itemId}
-                    initialPurchaseHistory={initialPurchaseHistory}
+                    secondLastPurchasePrice={secondLastPurchasePrice}
+                    initialTransactionHistory={initialTransactionHistory}
                 />
             </Suspense>
         </div>

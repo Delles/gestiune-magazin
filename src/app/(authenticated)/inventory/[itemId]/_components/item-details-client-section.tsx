@@ -23,25 +23,18 @@ import { deleteInventoryItems } from "@/app/(authenticated)/inventory/_data/api"
 import StockTransactionHistory from "@/app/(authenticated)/inventory/_components/history/stock-transaction-history";
 import ItemDetailHeader from "./item-detail-header";
 import { PrimaryMetrics } from "./PrimaryMetrics";
-import { PurchaseCostHistoryTable } from "./PurchaseCostHistoryTable"; // Assuming this component doesn't fetch data directly anymore
-// import { PurchaseCostHistoryLoader } from "../page"; // Commented out - passing data now
+// import { PurchaseCostHistoryTable } from "./PurchaseCostHistoryTable"; // Commented out - passing data now
 
 // Type for the item data passed from the server component
 type FetchedItem = Tables<"InventoryItems"> & {
     categories: { name: string | null } | null;
 };
 
-// Type for the purchase history data passed from the loader
-type PurchaseTransaction = {
-    id: string;
-    created_at: string;
-    purchase_price: number | null;
-};
-
 interface ItemDetailsClientSectionProps {
     item: FetchedItem;
     itemId: string;
-    initialPurchaseHistory: PurchaseTransaction[]; // Pass initial data
+    secondLastPurchasePrice: number | null;
+    initialTransactionHistory: Tables<"StockTransactions">[];
 }
 
 // Helper function for displaying nullable numeric values (copied from page.tsx)
@@ -56,7 +49,8 @@ const formatNullableNumber = (
 export function ItemDetailsClientSection({
     item,
     itemId,
-    initialPurchaseHistory,
+    secondLastPurchasePrice,
+    initialTransactionHistory,
 }: ItemDetailsClientSectionProps) {
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -137,6 +131,7 @@ export function ItemDetailsClientSection({
         selling_price: item.selling_price,
         average_purchase_price: item.average_purchase_price,
         last_purchase_price: item.last_purchase_price,
+        secondLastPurchasePrice: secondLastPurchasePrice,
     };
 
     // --- Render ---
@@ -167,9 +162,7 @@ export function ItemDetailsClientSection({
                     )}
                 >
                     <TabsTrigger value="details">Details</TabsTrigger>
-                    <TabsTrigger value="history-costing">
-                        History & Costing
-                    </TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="space-y-6">
@@ -229,16 +222,13 @@ export function ItemDetailsClientSection({
                     </div>
                 </TabsContent>
 
-                <TabsContent value="history-costing" className="space-y-6">
-                    {/* Render PurchaseCostHistoryTable with initial data */}
-                    <PurchaseCostHistoryTable
-                        transactions={initialPurchaseHistory}
-                    />
-
-                    {/* StockTransactionHistory likely fetches its own data or needs passing */}
+                <TabsContent value="history" className="space-y-6">
                     <StockTransactionHistory
                         itemId={item.id}
                         itemName={item.item_name}
+                        currentStock={item.stock_quantity}
+                        transactions={initialTransactionHistory}
+                        unit={item.unit}
                     />
                 </TabsContent>
             </Tabs>

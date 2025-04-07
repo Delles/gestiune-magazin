@@ -3,9 +3,9 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         itemId: string;
-    };
+    }>;
 }
 
 // GET handler for retrieving stock transactions for an item

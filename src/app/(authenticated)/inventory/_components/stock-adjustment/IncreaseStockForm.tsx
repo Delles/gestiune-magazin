@@ -44,12 +44,12 @@ import { cn } from "@/lib/utils";
 import {
     increaseStockSchema,
     type IncreaseStockFormValues,
-    type IncreaseStockTransactionType,
+    type StockAdjustmentFormTransactionType,
 } from "@/lib/validation/inventory-schemas";
 import { adjustInventoryItemStock } from "@/services/inventoryService";
 
 interface TransactionTypeConfig {
-    value: IncreaseStockTransactionType;
+    value: StockAdjustmentFormTransactionType;
     label: string;
     description: string;
     icon: React.ReactNode;
@@ -110,6 +110,13 @@ export default function IncreaseStockForm({
     const quantity = form.watch("quantity");
     const showPriceFields = selectedTransactionType === "purchase";
     const showReasonRequired = selectedTransactionType === "correction-add";
+
+    // START: Dynamic Reason Placeholder
+    let reasonPlaceholder = "Optional notes...";
+    if (showReasonRequired)
+        reasonPlaceholder =
+            "Required: e.g., Found extra stock, Cycle count correction";
+    // END: Dynamic Reason Placeholder
 
     // Calculate estimated new stock for preview
     const newStock = currentStock + quantity;
@@ -250,7 +257,7 @@ export default function IncreaseStockForm({
                                             <FormControl>
                                                 <RadioGroup
                                                     onValueChange={(
-                                                        value: IncreaseStockTransactionType
+                                                        value: StockAdjustmentFormTransactionType
                                                     ) => {
                                                         field.onChange(value);
                                                         if (
@@ -551,20 +558,18 @@ export default function IncreaseStockForm({
                                     name="reason"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="flex items-center gap-1">
-                                                Reason
-                                                {showReasonRequired && (
-                                                    <span className="text-destructive">
-                                                        *
-                                                    </span>
-                                                )}
+                                            <FormLabel
+                                                className={cn({
+                                                    "after:content-['*'] after:ml-0.5 after:text-destructive":
+                                                        showReasonRequired,
+                                                })}
+                                            >
+                                                Reason / Notes
                                             </FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder={
-                                                        showReasonRequired
-                                                            ? "Required: Why needed"
-                                                            : "Optional notes"
+                                                        reasonPlaceholder
                                                     }
                                                     {...field}
                                                     value={field.value || ""}
