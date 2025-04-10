@@ -28,7 +28,13 @@ export const MetricDisplayCard: React.FC<MetricDisplayCardProps> = ({
 }) => (
     <div
         className={cn(
-            "border rounded-lg p-4 flex flex-col justify-between bg-muted/30 hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 h-full min-h-[110px] shadow-sm hover:shadow",
+            "border border-border",
+            "shadow-highlight-top",
+            "rounded-lg p-4 flex flex-col justify-between",
+            "bg-gradient-to-b from-card to-card/90 dark:from-card dark:to-card/85",
+            "shadow-soft-sm hover:shadow-soft-md",
+            "transition-all duration-300 ease-in-out",
+            "h-full min-h-[110px]",
             className
         )}
     >

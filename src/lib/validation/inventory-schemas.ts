@@ -186,7 +186,7 @@ export const increaseStockSchema = z
             .string()
             .max(255, "Reason cannot exceed 255 chars")
             .optional()
-            .nullable(),
+            .default(""),
         date: z.coerce.date().optional(),
     })
     .superRefine((data, ctx) => {

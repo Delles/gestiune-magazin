@@ -28,13 +28,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    Loader2,
-    DollarSign,
-    Package,
-    Info,
-    AlertTriangle,
-} from "lucide-react";
+import { Loader2, DollarSign, Package, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Tables } from "@/types/supabase"; // Use Supabase types
@@ -43,6 +37,7 @@ import {
     getInventoryItem,
     updateInventoryItem,
 } from "../../_data/api"; // Import API functions
+import { cn } from "@/lib/utils";
 
 interface EditItemFormProps {
     itemId: string;
@@ -176,7 +171,7 @@ export default function EditItemForm({
         <Form {...form}>
             <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-6 px-1 py-2"
+                className="space-y-5 px-1 py-2"
             >
                 {serverError && (
                     <div className="bg-destructive/10 p-3 rounded-md border border-destructive text-sm text-destructive">
@@ -205,19 +200,18 @@ export default function EditItemForm({
                     name="itemName"
                     render={({ field }) => (
                         <FormItem>
-                            {" "}
-                            <FormLabel>Item Name</FormLabel>{" "}
+                            <FormLabel>Item Name</FormLabel>
                             <div className="relative">
                                 <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <FormControl>
                                     <Input
                                         placeholder="e.g., Organic Tomatoes"
-                                        className="pl-9"
+                                        className="pl-9 shadow-soft-inner bg-input border border-border focus-visible:ring-primary/80 focus-visible:ring-offset-0 focus-visible:ring-2"
                                         {...field}
                                     />
                                 </FormControl>
-                            </div>{" "}
-                            <FormMessage />{" "}
+                            </div>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
@@ -228,8 +222,7 @@ export default function EditItemForm({
                     name="categoryId"
                     render={({ field }) => (
                         <FormItem>
-                            {" "}
-                            <FormLabel>Category (Optional)</FormLabel>{" "}
+                            <FormLabel>Category (Optional)</FormLabel>
                             <Select
                                 onValueChange={(value) =>
                                     field.onChange(
@@ -238,25 +231,29 @@ export default function EditItemForm({
                                 }
                                 value={field.value ?? "null"}
                             >
-                                {" "}
                                 <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="shadow-soft-inner bg-input border border-border focus:ring-primary/80 focus:ring-offset-0 focus:ring-2">
                                         <SelectValue placeholder="Select category" />
                                     </SelectTrigger>
-                                </FormControl>{" "}
-                                <SelectContent>
-                                    {" "}
+                                </FormControl>
+                                <SelectContent className="border border-black/5 dark:border-white/10 bg-gradient-to-b from-popover to-popover/95 dark:from-popover dark:to-popover/90 shadow-md">
                                     <SelectItem value="null">
                                         -- No Category --
-                                    </SelectItem>{" "}
-                                    {categories.map((cat) => (
-                                        <SelectItem key={cat.id} value={cat.id}>
-                                            {cat.name}
+                                    </SelectItem>
+                                    {categories.map((category) => (
+                                        <SelectItem
+                                            key={category.id}
+                                            value={category.id}
+                                        >
+                                            {category.name}
                                         </SelectItem>
-                                    ))}{" "}
-                                </SelectContent>{" "}
-                            </Select>{" "}
-                            <FormMessage />{" "}
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormDescription>
+                                Unit price for selling this item.
+                            </FormDescription>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
@@ -267,8 +264,7 @@ export default function EditItemForm({
                     name="sellingPrice"
                     render={({ field }) => (
                         <FormItem>
-                            {" "}
-                            <FormLabel>Selling Price</FormLabel>{" "}
+                            <FormLabel>Selling Price</FormLabel>
                             <div className="relative">
                                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <FormControl>
@@ -277,7 +273,7 @@ export default function EditItemForm({
                                         step="any"
                                         min="0"
                                         placeholder="0.00"
-                                        className="pl-9"
+                                        className="pl-9 shadow-soft-inner bg-input border border-border focus-visible:ring-primary/80 focus-visible:ring-offset-0 focus-visible:ring-2"
                                         {...field}
                                         value={field.value ?? ""}
                                         onChange={(e) =>
@@ -289,101 +285,101 @@ export default function EditItemForm({
                                         }
                                     />
                                 </FormControl>
-                            </div>{" "}
-                            <FormMessage />{" "}
+                            </div>
+                            <FormDescription>
+                                Unit price for selling this item.
+                            </FormDescription>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
 
-                {/* Reorder Point & Description */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <FormField
-                        control={form.control}
-                        name="reorder_point"
-                        render={({ field }) => (
-                            <FormItem>
-                                {" "}
-                                <FormLabel>
-                                    Reorder Point (Optional)
-                                </FormLabel>{" "}
-                                <div className="relative">
-                                    <AlertTriangle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <FormControl>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            placeholder="e.g., 10"
-                                            className="pl-9"
-                                            value={field.value ?? ""}
-                                            onChange={(e) =>
-                                                field.onChange(
-                                                    e.target.value === ""
-                                                        ? null
-                                                        : parseInt(
-                                                              e.target.value,
-                                                              10
-                                                          ) || 0
-                                                )
-                                            }
-                                        />
-                                    </FormControl>
-                                </div>{" "}
-                                <FormDescription className="text-xs">
-                                    Low stock warning level.
-                                </FormDescription>{" "}
-                                <FormMessage />{" "}
-                            </FormItem>
-                        )}
-                    />
-                </div>
+                {/* Reorder Point */}
+                <FormField
+                    control={form.control}
+                    name="reorder_point"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Reorder Point (Optional)</FormLabel>
+                            <div className="relative">
+                                <AlertTriangle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <FormControl>
+                                    <Input
+                                        type="number"
+                                        placeholder="e.g., 10"
+                                        className="pl-9 shadow-soft-inner bg-input border border-border focus-visible:ring-primary/80 focus-visible:ring-offset-0 focus-visible:ring-2"
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        onChange={(e) =>
+                                            field.onChange(
+                                                e.target.value === ""
+                                                    ? null
+                                                    : Number(e.target.value)
+                                            )
+                                        }
+                                    />
+                                </FormControl>
+                            </div>
+                            <FormDescription>
+                                Low stock warning level.
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                {/* Description */}
                 <FormField
                     control={form.control}
                     name="description"
                     render={({ field }) => (
                         <FormItem>
-                            {" "}
-                            <FormLabel>Description (Optional)</FormLabel>{" "}
-                            <div className="relative">
-                                <Info className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <FormControl>
-                                    <Textarea
-                                        placeholder="Add details..."
-                                        className="min-h-[80px] pl-9"
-                                        {...field}
-                                        value={field.value ?? ""}
-                                    />
-                                </FormControl>
-                            </div>{" "}
-                            <FormMessage />{" "}
+                            <FormLabel>Description (Optional)</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    placeholder="Enter item description (optional)"
+                                    rows={4}
+                                    className="resize-none shadow-soft-inner bg-input border border-border focus-visible:ring-primary/80 focus-visible:ring-offset-0 focus-visible:ring-2"
+                                    {...field}
+                                    value={field.value ?? ""}
+                                />
+                            </FormControl>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
 
                 {/* Form Actions */}
-                <div className="flex justify-end gap-2 pt-4">
-                    {onClose && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={onClose}
-                            disabled={mutation.isPending}
-                        >
-                            Cancel
-                        </Button>
-                    )}
+                <div className="flex justify-end gap-3 pt-4 border-t border-border/80">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                            "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                            "border border-black/10 dark:border-white/15",
+                            "hover:bg-accent/50 active:bg-accent/70",
+                            "hover:scale-[1.02] active:scale-[0.98]",
+                            "transition-all duration-150 ease-in-out"
+                        )}
+                        onClick={onClose}
+                        disabled={mutation.isPending}
+                    >
+                        Cancel
+                    </Button>
                     <Button
                         type="submit"
-                        disabled={mutation.isPending || isLoading}
-                    >
-                        {mutation.isPending ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                                Saving...
-                            </>
-                        ) : (
-                            "Save Changes"
+                        className={cn(
+                            "shadow-soft-md hover:shadow-soft-lg active:shadow-soft-inner",
+                            "hover:scale-[1.02] active:scale-[0.98]",
+                            "transition-all duration-150 ease-in-out",
+                            "active:bg-primary/90"
                         )}
+                        disabled={mutation.isPending || !form.formState.isValid}
+                    >
+                        {mutation.isPending && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Save Changes
                     </Button>
                 </div>
             </form>

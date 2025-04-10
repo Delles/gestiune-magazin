@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { cn, formatDate, formatNullableNumber } from "@/lib/utils";
+import { formatDate, formatNullableNumber } from "@/lib/utils";
 import { Tables } from "@/types/supabase";
 import {
     deleteInventoryItems,
@@ -34,6 +34,7 @@ import {
 } from "@/lib/inventoryUtils";
 import IncreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/IncreaseStockForm";
 import DecreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/DecreaseStockForm";
+import { cn } from "@/lib/utils";
 
 // Type for the item data passed from the server component
 type FetchedItem = Tables<"InventoryItems"> & {
@@ -247,33 +248,55 @@ export function ItemDetailsClientSection({
                 </div>
             </div>
 
+            {/* Keep Tabs structure but restore original Details content and correct History props */}
             <Tabs defaultValue="details" className="w-full">
                 <TabsList
                     className={cn(
-                        "grid w-full grid-cols-2 md:w-[400px] mb-6",
-                        "sticky z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-                        "top-[92px]",
-                        "border-b shadow-sm",
-                        "transition-all duration-300"
+                        "grid w-full grid-cols-3 md:w-[600px] mb-6 h-10 sticky top-[92px] z-20",
+                        "border-b border-border shadow-soft-sm",
+                        "bg-muted/80 dark:bg-muted/40 rounded-lg"
                     )}
                 >
+                    {/* Details Tab Trigger */}
                     <TabsTrigger
                         value="details"
-                        className="transition-all duration-200 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/60"
+                        className={cn(
+                            "rounded-md transition-all duration-200 ease-in-out",
+                            "text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold",
+                            "data-[state=active]:bg-background data-[state=active]:shadow-soft-sm"
+                        )}
                     >
                         Detalii
                     </TabsTrigger>
+                    {/* History Tab Trigger */}
                     <TabsTrigger
                         value="history"
-                        className="transition-all duration-200 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/60"
+                        className={cn(
+                            "rounded-md transition-all duration-200 ease-in-out",
+                            "text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold",
+                            "data-[state=active]:bg-background data-[state=active]:shadow-soft-sm"
+                        )}
                     >
-                        Istoric
+                        Istoric Tranzacții
+                    </TabsTrigger>
+                    {/* Analytics Tab Trigger */}
+                    <TabsTrigger
+                        value="analytics"
+                        disabled
+                        className={cn(
+                            "rounded-md transition-all duration-200 ease-in-out",
+                            "text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold",
+                            "data-[state=active]:bg-background data-[state=active]:shadow-soft-sm"
+                        )}
+                    >
+                        Analiză (în curând)
                     </TabsTrigger>
                 </TabsList>
 
+                {/* Details Tab Content (Restored) */}
                 <TabsContent
                     value="details"
-                    className="space-y-6 animate-in fade-in-50 slide-in-from-left-1 duration-300"
+                    className="space-y-6 animate-in fade-in-50 duration-300 mt-4"
                 >
                     <div className="space-y-4">
                         <h3 className="text-lg font-medium bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent inline-block">
@@ -288,6 +311,8 @@ export function ItemDetailsClientSection({
                         <h3 className="text-lg font-medium bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent inline-block">
                             Informații suplimentare
                         </h3>
+                        {/* Use MetricDisplayCard styling concept here? Or keep simpler list? */}
+                        {/* Keeping simpler list for now, can enhance later */}
                         <dl className="space-y-3 border p-4 rounded-lg bg-muted/40 shadow-sm hover:shadow transition-all duration-300 hover:bg-muted/50">
                             <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
@@ -337,17 +362,23 @@ export function ItemDetailsClientSection({
                     </div>
                 </TabsContent>
 
-                <TabsContent
-                    value="history"
-                    className="space-y-6 animate-in fade-in-50 slide-in-from-right-1 duration-300"
-                >
+                {/* History Tab Content (Corrected Props) */}
+                <TabsContent value="history" className="mt-4">
                     <StockTransactionHistory
                         itemId={itemId}
                         itemName={item.item_name}
                         currentStock={item.stock_quantity}
-                        transactions={initialTransactionHistory}
+                        transactions={initialTransactionHistory} // Correct prop name
                         unit={item.unit}
                     />
+                </TabsContent>
+
+                {/* Analytics Tab Content (Keep as is) */}
+                <TabsContent value="analytics" className="mt-4">
+                    <p className="text-center text-muted-foreground p-8">
+                        Secțiunea de analiză detaliată va fi disponibilă în
+                        curând.
+                    </p>
                 </TabsContent>
             </Tabs>
 
@@ -356,30 +387,46 @@ export function ItemDetailsClientSection({
                 open={isDeleteDialogOpen}
                 onOpenChange={setIsDeleteDialogOpen}
             >
-                <DialogContent>
+                <DialogContent className="sm:max-w-md border border-border bg-gradient-to-b from-card to-card/95 dark:from-card dark:to-card/90 shadow-soft-lg">
                     <DialogHeader>
                         <DialogTitle>Confirmare Ștergere</DialogTitle>
                         <DialogDescription>
                             Ești sigur că vrei să ștergi articolul &quot;
-                            {item.item_name}&quot;? Această acțiune nu poate fi
-                            anulată.
+                            <span className="font-semibold text-foreground">
+                                {item.item_name}
+                            </span>
+                            &quot;? Această acțiune este ireversibilă și va
+                            șterge și tot istoricul asociat.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
+                    <DialogFooter className="mt-4">
                         <Button
+                            type="button"
                             variant="outline"
+                            className={cn(
+                                "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                                "border border-black/10 dark:border-white/15",
+                                "hover:bg-accent/50 active:bg-accent/70",
+                                "hover:scale-[1.02] active:scale-[0.98]",
+                                "transition-all duration-150 ease-in-out"
+                            )}
                             onClick={() => setIsDeleteDialogOpen(false)}
                         >
                             Anulează
                         </Button>
                         <Button
                             variant="destructive"
+                            className={cn(
+                                "shadow-soft-md hover:shadow-soft-lg active:shadow-soft-inner",
+                                "hover:scale-[1.02] active:scale-[0.98]",
+                                "transition-all duration-150 ease-in-out"
+                            )}
                             onClick={() => deleteMutation.mutate([itemId])}
                             disabled={deleteMutation.isPending}
                         >
                             {deleteMutation.isPending
                                 ? "Ștergere..."
-                                : "Șterge"}
+                                : "Șterge Articolul"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -390,21 +437,23 @@ export function ItemDetailsClientSection({
                 open={isAddStockDialogOpen}
                 onOpenChange={setIsAddStockDialogOpen}
             >
-                <DialogContent
-                    className="sm:max-w-[700px] p-0 border-0 max-h-[90vh] overflow-hidden flex flex-col"
-                    onPointerDownOutside={(e) => e.preventDefault()}
-                >
+                <DialogContent className="sm:max-w-lg border border-border bg-gradient-to-b from-card to-card/95 dark:from-card dark:to-card/90 shadow-soft-lg">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Creștere Stoc: {item.item_name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Înregistrează o nouă achiziție sau o altă formă de
+                            adăugare în stoc.
+                        </DialogDescription>
+                    </DialogHeader>
                     <IncreaseStockForm
                         itemId={itemId}
                         itemName={item.item_name}
                         unit={item.unit}
                         currentStock={item.stock_quantity}
                         onSuccess={handleStockAdjustmentSuccess}
-                        onClose={() => {
-                            if (isMounted.current) {
-                                setIsAddStockDialogOpen(false);
-                            }
-                        }}
+                        onClose={() => setIsAddStockDialogOpen(false)}
                     />
                 </DialogContent>
             </Dialog>
@@ -414,10 +463,16 @@ export function ItemDetailsClientSection({
                 open={isReduceStockDialogOpen}
                 onOpenChange={setIsReduceStockDialogOpen}
             >
-                <DialogContent
-                    className="sm:max-w-[700px] p-0 border-0 max-h-[90vh] overflow-hidden flex flex-col"
-                    onPointerDownOutside={(e) => e.preventDefault()}
-                >
+                <DialogContent className="sm:max-w-lg border border-border bg-gradient-to-b from-card to-card/95 dark:from-card dark:to-card/90 shadow-soft-lg">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Reducere Stoc: {item.item_name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Înregistrează o vânzare, consum, pierdere sau altă
+                            formă de reducere a stocului.
+                        </DialogDescription>
+                    </DialogHeader>
                     <DecreaseStockForm
                         itemId={itemId}
                         itemName={item.item_name}
@@ -425,11 +480,7 @@ export function ItemDetailsClientSection({
                         currentStock={item.stock_quantity}
                         averagePurchasePrice={item.average_purchase_price}
                         onSuccess={handleStockAdjustmentSuccess}
-                        onClose={() => {
-                            if (isMounted.current) {
-                                setIsReduceStockDialogOpen(false);
-                            }
-                        }}
+                        onClose={() => setIsReduceStockDialogOpen(false)}
                     />
                 </DialogContent>
             </Dialog>

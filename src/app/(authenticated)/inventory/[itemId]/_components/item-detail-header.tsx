@@ -66,16 +66,25 @@ export default function ItemDetailHeader({
     return (
         <div
             className={cn(
-                "sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 pt-4 pb-4 border-b shadow-sm transition-all duration-200"
+                "sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 pt-4 pb-4",
+                "border-b border-border shadow-soft-sm"
             )}
         >
             {/* Back Navigation */}
             <div className="flex items-center space-x-2 mb-6">
                 <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     asChild
-                    className="transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 group"
+                    className={cn(
+                        "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                        "border border-black/10 dark:border-white/15",
+                        "hover:bg-accent/50 active:bg-accent/70",
+                        "hover:scale-[1.02] active:scale-[0.98]",
+                        "transition-all duration-150 ease-in-out",
+                        "group"
+                    )}
                 >
                     <Link href="/inventory">
                         <ArrowLeftIcon className="mr-1 h-4 w-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
@@ -90,7 +99,14 @@ export default function ItemDetailHeader({
                 <div className="flex-1 space-y-2 min-w-0">
                     {/* Title Row with Status Badges */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        <div className="bg-muted p-2 rounded-lg flex-shrink-0 shadow-sm hover:shadow transition-all duration-300 hover:bg-muted/80 group">
+                        <div
+                            className={cn(
+                                "bg-gradient-to-br from-muted to-muted/80 dark:from-muted/80 dark:to-muted/60 p-2 rounded-lg flex-shrink-0",
+                                "shadow-soft-inner hover:shadow-soft-sm",
+                                "border border-black/5 dark:border-white/5",
+                                "transition-all duration-300 group"
+                            )}
+                        >
                             <CategoryIcon
                                 className="h-6 w-6 text-muted-foreground group-hover:text-primary/80 transition-colors duration-300"
                                 aria-label={`${
@@ -138,15 +154,30 @@ export default function ItemDetailHeader({
                                 <Sheet>
                                     <SheetTrigger asChild>
                                         <Button
+                                            type="button"
                                             variant="outline"
-                                            className="transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 group"
+                                            className={cn(
+                                                "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                                                "border border-black/10 dark:border-white/15",
+                                                "hover:bg-accent/50 active:bg-accent/70",
+                                                "hover:scale-[1.02] active:scale-[0.98]",
+                                                "transition-all duration-150 ease-in-out",
+                                                "group"
+                                            )}
                                         >
                                             <PencilIcon className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform duration-300" />{" "}
                                             Edit
                                         </Button>
                                     </SheetTrigger>
-                                    <SheetContent className="sm:max-w-xl w-[90vw] overflow-y-auto p-0">
-                                        <SheetHeader className="p-6 pb-4">
+                                    <SheetContent
+                                        className={cn(
+                                            "sm:max-w-xl w-[90vw] overflow-y-auto p-0",
+                                            "border-l border-border",
+                                            "bg-gradient-to-b from-card to-card/95 dark:from-card dark:to-card/90",
+                                            "shadow-soft-lg"
+                                        )}
+                                    >
+                                        <SheetHeader className="p-6 pb-4 border-b border-border/80">
                                             <SheetTitle>
                                                 Edit: {item.item_name}
                                             </SheetTitle>
@@ -176,11 +207,25 @@ export default function ItemDetailHeader({
                             <TooltipTrigger asChild>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                                "rounded-full hover:bg-accent/50 active:scale-95 transition-all duration-150 ease-in-out",
+                                                "active:bg-accent/70"
+                                            )}
+                                        >
                                             <MoreVertical className="h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
+                                    <DropdownMenuContent
+                                        align="end"
+                                        className={cn(
+                                            "border border-black/5 dark:border-white/10",
+                                            "bg-gradient-to-b from-popover to-popover/95 dark:from-popover dark:to-popover/90",
+                                            "shadow-soft-md"
+                                        )}
+                                    >
                                         <DropdownMenuItem disabled>
                                             View History
                                         </DropdownMenuItem>

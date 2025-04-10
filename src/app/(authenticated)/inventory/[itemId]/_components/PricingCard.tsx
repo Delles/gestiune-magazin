@@ -32,7 +32,7 @@ const renderTrend = (
         return <span className="text-muted-foreground">-</span>;
     }
     const isPositive = value > 0;
-    const color = isPositive ? "text-red-500" : "text-green-500"; // Trend up (cost increase) is red, down is green
+    const color = isPositive ? "text-destructive" : "text-green-500"; // Trend up (cost increase) is red, down is green
     const Icon = isPositive ? TrendingUpIcon : TrendingDownIcon;
 
     return (
@@ -50,7 +50,7 @@ const renderCurrencyTrend = (value: number | null, prefix: string = "") => {
         return <span className="text-muted-foreground">-</span>;
     }
     const isPositive = value > 0;
-    const color = isPositive ? "text-red-500" : "text-green-500"; // Trend up (cost increase) is red, down is green
+    const color = isPositive ? "text-destructive" : "text-green-500"; // Trend up (cost increase) is red, down is green
     const Icon = isPositive ? TrendingUpIcon : TrendingDownIcon;
     return (
         <span

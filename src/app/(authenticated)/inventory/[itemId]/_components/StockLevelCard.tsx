@@ -85,8 +85,8 @@ export function StockLevelCard({
         : isLowStock
         ? {
               text: "Stoc scăzut",
-              color: "bg-amber-500",
-              iconColor: "text-amber-500",
+              color: "bg-amber-500 dark:bg-amber-600",
+              iconColor: "text-amber-500 dark:text-amber-400",
           }
         : isOverStocked
         ? {
@@ -100,23 +100,28 @@ export function StockLevelCard({
               iconColor: "text-emerald-500",
           };
 
-    const progressBarColor = isOutOfStock
-        ? "bg-destructive"
-        : isLowStock
-        ? "bg-amber-500"
-        : isOverStocked
-        ? "bg-blue-500"
-        : "bg-emerald-500";
-
     // --- JSX (Migrated from PrimaryMetrics Stock/Reorder Section) ---
     return (
-        <Card className={cn("flex flex-col justify-between", className)}>
-            <CardContent className="p-4 flex flex-col flex-grow">
+        <Card
+            className={cn(
+                "flex flex-col justify-between",
+                "shadow-soft-md hover:shadow-soft-lg",
+                "border border-border",
+                "shadow-highlight-top",
+                "bg-gradient-to-b from-card to-card/90 dark:from-card dark:to-card/85",
+                "transition-all duration-300 ease-in-out",
+                className
+            )}
+        >
+            <CardContent className="p-6 flex flex-col flex-grow">
                 {/* Stock Quantity Display */}
-                <div className="flex flex-col items-center text-center mb-6 mt-2">
+                <div className="flex flex-col items-center text-center mb-8 mt-2">
                     <div
                         className={cn(
-                            "w-16 h-16 mb-2 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg flex-shrink-0 shadow-md transition-all duration-300 hover:scale-105",
+                            "w-16 h-16 mb-2 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg flex-shrink-0",
+                            "shadow-soft-md shadow-soft-inner",
+                            "border border-black/5 dark:border-white/10",
+                            "transition-all duration-300 hover:scale-105",
                             stockStatus.color
                         )}
                     >
@@ -136,7 +141,7 @@ export function StockLevelCard({
                 </div>
 
                 {/* Reorder Point & Progress Bar */}
-                <div className="px-1 mb-6 mt-auto">
+                <div className="px-1 mb-8 mt-auto">
                     {" "}
                     {/* Adjusted margins */}
                     {/* Reorder Point Edit Popover Trigger */}
@@ -213,10 +218,6 @@ export function StockLevelCard({
                                     unit={unit}
                                     onSave={(data) => {
                                         onSaveReorderPoint(data);
-                                        // Popover closes automatically on successful mutation via parent state change now
-                                        // if (isMounted.current) {
-                                        //     setIsReorderPopoverOpen(false);
-                                        // }
                                     }}
                                     onCancel={() => {
                                         if (isMounted.current) {
@@ -230,7 +231,7 @@ export function StockLevelCard({
                     </Popover>
                     {/* Progress Bar section */}
                     {stockPercentage !== null && reorder_point !== null && (
-                        <div className="mt-1">
+                        <div className="mt-3">
                             {" "}
                             {/* Add margin top */}
                             <div className="flex justify-between items-center text-xs text-muted-foreground mb-1">
@@ -243,8 +244,7 @@ export function StockLevelCard({
                                         <Progress
                                             value={progressBarValue}
                                             className={cn(
-                                                "h-2 w-full transition-all duration-700 ease-in-out",
-                                                progressBarColor
+                                                "h-2 w-full rounded-full bg-muted transition-all duration-700 ease-in-out"
                                             )}
                                         />
                                     </TooltipTrigger>
@@ -278,16 +278,23 @@ export function StockLevelCard({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-center gap-3 w-full mt-auto pt-4 border-t border-muted">
+                <div className="flex justify-center gap-3 w-full mt-auto pt-6 border-t border-border/80">
                     {" "}
                     {/* Pushed to bottom */}
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
-                                    size="sm"
+                                    type="button"
                                     variant="outline"
-                                    className="text-xs h-8 px-4 flex-1" // Use flex-1 for equal width
+                                    className={cn(
+                                        "text-xs h-8 px-4 flex-1",
+                                        "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                                        "border border-black/10 dark:border-white/15",
+                                        "hover:bg-accent/50 active:bg-accent/70",
+                                        "hover:scale-[1.02] active:scale-[0.98]",
+                                        "transition-all duration-150 ease-in-out"
+                                    )}
                                     onClick={onAddStockClick}
                                 >
                                     <PlusIcon className="h-3.5 w-3.5 mr-1.5" />
@@ -303,9 +310,17 @@ export function StockLevelCard({
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
-                                    size="sm"
+                                    type="button"
                                     variant="outline"
-                                    className="text-xs h-8 px-4 flex-1" // Use flex-1 for equal width
+                                    className={cn(
+                                        "text-xs h-8 px-4 flex-1",
+                                        "shadow-soft-sm hover:shadow-soft-md active:shadow-soft-inner",
+                                        "border border-black/10 dark:border-white/15",
+                                        "hover:bg-accent/50 active:bg-accent/70",
+                                        "hover:scale-[1.02] active:scale-[0.98]",
+                                        "transition-all duration-150 ease-in-out",
+                                        "disabled:opacity-60 disabled:shadow-none disabled:scale-100"
+                                    )}
                                     onClick={onReduceStockClick}
                                     disabled={stock_quantity <= 0}
                                 >
