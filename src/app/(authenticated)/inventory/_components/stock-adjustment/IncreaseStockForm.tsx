@@ -98,7 +98,6 @@ export default function IncreaseStockForm({
         defaultValues: {
             transactionType: "purchase",
             quantity: 1,
-            date: format(new Date(), "yyyy-MM-dd"),
             purchasePrice: null,
             totalCost: null,
             referenceNumber: "",
@@ -190,7 +189,6 @@ export default function IncreaseStockForm({
             form.reset({
                 transactionType: "purchase",
                 quantity: 1,
-                date: format(new Date(), "yyyy-MM-dd"),
                 purchasePrice: null,
                 totalCost: null,
                 referenceNumber: "",
@@ -214,7 +212,10 @@ export default function IncreaseStockForm({
 
     const onSubmit = (values: IncreaseStockFormValues) => {
         setServerError(null);
-        mutation.mutate(values);
+        mutation.mutate({
+            ...values,
+            date: new Date(),
+        });
     };
 
     return (

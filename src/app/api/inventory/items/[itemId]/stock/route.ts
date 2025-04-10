@@ -99,16 +99,15 @@ export async function POST(
         }
 
         // 5. Prepare parameters for the RPC call (match SQL function signature)
+        const transactionDate = date instanceof Date ? date : new Date(); // Default to now if date is undefined/invalid
+
         const rpcParams = {
             p_item_id: itemId,
             p_quantity_change: quantityChange, // Use the signed quantity change
             p_transaction_type:
                 transactionType as StockAdjustmentTransactionType, // Ensure type matches DB enum if needed
             p_user_id: userId,
-            p_transaction_date:
-                date instanceof Date
-                    ? date.toISOString()
-                    : new Date(date).toISOString(), // Ensure ISO string
+            p_transaction_date: transactionDate.toISOString(),
             p_reason: reason || undefined, // Use undefined instead of null
             p_reference_number: referenceNumber || undefined, // Use undefined instead of null
             // Pass prices based on context (RPC function might ignore irrelevant ones)

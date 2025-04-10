@@ -187,10 +187,7 @@ export const increaseStockSchema = z
             .max(255, "Reason cannot exceed 255 chars")
             .optional()
             .nullable(),
-        date: z
-            .union([z.date(), z.string().datetime({ offset: true })])
-            .optional()
-            .default(() => new Date()),
+        date: z.coerce.date().optional(),
     })
     .superRefine((data, ctx) => {
         // Refinement logic specific to increase types (purchase, correction-add)
@@ -274,10 +271,7 @@ export const decreaseStockSchema = z
             .max(255, "Reason cannot exceed 255 chars")
             .optional()
             .nullable(),
-        date: z
-            .union([z.date(), z.string().datetime({ offset: true })])
-            .optional()
-            .default(() => new Date()),
+        date: z.coerce.date().optional(),
     })
     .superRefine((data, ctx) => {
         // Refinement logic specific to decrease types (sale, write-off, correction-remove)
@@ -400,10 +394,7 @@ export const stockAdjustmentSchema = z
             .max(255, "Reason cannot exceed 255 chars")
             .optional()
             .nullable(),
-        date: z
-            .union([z.date(), z.string().datetime({ offset: true })])
-            .optional()
-            .default(() => new Date()),
+        date: z.coerce.date().optional(),
     })
     .superRefine((data, ctx) => {
         const {

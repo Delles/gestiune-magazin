@@ -5,9 +5,13 @@ import { Metadata } from "next";
 import { Tables } from "@/types/supabase";
 import ItemDetailHeaderSkeleton from "./_components/item-detail-header-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PrimaryMetricsSkeleton } from "./_components/PrimaryMetricsSkeleton";
 import { ItemDetailsClientSection } from "./_components/item-details-client-section";
 import { unstable_noStore as noStore } from "next/cache";
+
+// Import new skeletons
+import { StockLevelCardSkeleton } from "./_components/StockLevelCardSkeleton";
+import { PricingCardSkeleton } from "./_components/PricingCardSkeleton";
+import { ProfitabilityCardSkeleton } from "./_components/ProfitabilityCardSkeleton";
 
 export const metadata: Metadata = {
     title: "Inventory Item Details",
@@ -82,9 +86,15 @@ export default async function InventoryItemPage(props: PageProps) {
                 fallback={
                     <>
                         <ItemDetailHeaderSkeleton />
-                        <PrimaryMetricsSkeleton className="mb-6" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                            <StockLevelCardSkeleton className="xl:col-span-1" />
+                            <div className="md:col-span-1 lg:col-span-2 xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <PricingCardSkeleton className="md:col-span-1" />
+                                <ProfitabilityCardSkeleton className="md:col-span-2" />
+                            </div>
+                        </div>
                         <div className="w-full space-y-6">
-                            <div className="grid w-full grid-cols-2 md:w-[400px] mb-6 h-10 sticky top-[130px] z-20 border-b">
+                            <div className="grid w-full grid-cols-2 md:w-[400px] mb-6 h-10 sticky top-[92px] z-20 border-b shadow-sm">
                                 <Skeleton className="h-full w-full rounded-none" />
                                 <Skeleton className="h-full w-full rounded-none" />
                             </div>

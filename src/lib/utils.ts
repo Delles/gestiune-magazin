@@ -109,3 +109,23 @@ export const formatPercentage = (
     }
     return `${value.toFixed(fractionDigits)}%`;
 };
+
+/**
+ * Formats a nullable numeric value, appending a suffix if the value is not null.
+ *
+ * @param value The number to format. Can be null or undefined.
+ * @param suffix The string to append if the value is not null (defaults to "").
+ * @returns The formatted number string with suffix, or "N/A" if the value is null or undefined.
+ */
+export const formatNullableNumber = (
+    value: number | null | undefined,
+    suffix: string = ""
+): string => {
+    if (value === null || value === undefined) {
+        return "N/A"; // Or perhaps an empty string or other placeholder
+    }
+    // You might want to use formatNumber here for consistency if needed, e.g.:
+    // return `${formatNumber(value)}${suffix}`;
+    // For simplicity, directly converting to string:
+    return `${value}${suffix}`;
+};

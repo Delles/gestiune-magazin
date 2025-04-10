@@ -115,7 +115,6 @@ export default function DecreaseStockForm({
             totalValue: null,
             referenceNumber: "",
             reason: "",
-            date: new Date(),
         },
         mode: "onChange",
     });
@@ -285,7 +284,6 @@ export default function DecreaseStockForm({
                 totalValue: null,
                 referenceNumber: "",
                 reason: "",
-                date: new Date(),
             });
             // Invalidate relevant queries to refresh the data
             queryClient.invalidateQueries({
@@ -314,7 +312,10 @@ export default function DecreaseStockForm({
         }
 
         setServerError(null);
-        mutation.mutate(values);
+        mutation.mutate({
+            ...values,
+            date: new Date(),
+        });
     };
 
     return (

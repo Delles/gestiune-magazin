@@ -16,13 +16,24 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatNullableNumber } from "@/lib/utils";
 import { Tables } from "@/types/supabase";
-import { deleteInventoryItems } from "@/app/(authenticated)/inventory/_data/api"; // Assuming API function path
+import {
+    deleteInventoryItems,
+    updateItemReorderPoint,
+} from "@/app/(authenticated)/inventory/_data/api";
 import StockTransactionHistory from "@/app/(authenticated)/inventory/_components/history/stock-transaction-history";
 import ItemDetailHeader from "./item-detail-header";
-import { PrimaryMetrics } from "./PrimaryMetrics";
-// import { PurchaseCostHistoryTable } from "./PurchaseCostHistoryTable"; // Commented out - passing data now
+import { StockLevelCard } from "./StockLevelCard";
+import { PricingCard } from "./PricingCard";
+import { ProfitabilityCard } from "./ProfitabilityCard";
+import {
+    calculateInventoryMetrics,
+    type MetricInputs,
+    type CalculatedMetrics,
+} from "@/lib/inventoryUtils";
+import IncreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/IncreaseStockForm";
+import DecreaseStockForm from "@/app/(authenticated)/inventory/_components/stock-adjustment/DecreaseStockForm";
 
 // Type for the item data passed from the server component
 type FetchedItem = Tables<"InventoryItems"> & {
@@ -36,15 +47,6 @@ interface ItemDetailsClientSectionProps {
     initialTransactionHistory: Tables<"StockTransactions">[];
 }
 
-// Helper function for displaying nullable numeric values (copied from page.tsx)
-const formatNullableNumber = (
-    value: number | null | undefined,
-    suffix: string = ""
-) => {
-    if (value === null || value === undefined) return "N/A";
-    return `${value}${suffix}`;
-};
-
 export function ItemDetailsClientSection({
     item,
     itemId,
@@ -54,6 +56,9 @@ export function ItemDetailsClientSection({
     const router = useRouter();
     const queryClient = useQueryClient();
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
+    const [isReduceStockDialogOpen, setIsReduceStockDialogOpen] =
+        useState(false);
     const isMounted = useRef(true);
 
     // Set up effect to track component mount status
@@ -111,9 +116,6 @@ export function ItemDetailsClientSection({
             queryClient.invalidateQueries({
                 queryKey: ["inventoryItems", "list"],
             });
-            // Optionally invalidate the specific item, though we're redirecting anyway
-            // queryClient.invalidateQueries({ queryKey: ['inventoryItem', itemId] });
-
             // Use router.push in a setTimeout to ensure it happens after the current render cycle
             setTimeout(() => {
                 router.push("/inventory"); // Redirect to inventory list
@@ -127,6 +129,53 @@ export function ItemDetailsClientSection({
         },
     });
 
+    // --- Reorder Point Mutation ---
+    const updateReorderPointMutation = useMutation({
+        mutationFn: ({
+            id,
+            reorder_point,
+        }: {
+            id: string;
+            reorder_point: number | null;
+        }) => updateItemReorderPoint(id, reorder_point),
+        onSuccess: () => {
+            toast.success(
+                "Punctul de reaprovizionare a fost actualizat cu succes."
+            );
+            queryClient.invalidateQueries({
+                queryKey: ["inventoryItem", itemId],
+            });
+            // No need to invalidate stockTransactions here
+        },
+        onError: (error) => {
+            toast.error(
+                `Nu s-a putut actualiza punctul de reaprovizionare: ${error.message}`
+            );
+        },
+    });
+
+    // --- Callbacks for StockLevelCard ---
+    const handleSaveReorderPoint = (data: { reorder_point: number | null }) => {
+        updateReorderPointMutation.mutate({
+            id: itemId,
+            reorder_point: data.reorder_point,
+        });
+    };
+    const handleOpenAddStock = () => setIsAddStockDialogOpen(true);
+    const handleOpenReduceStock = () => setIsReduceStockDialogOpen(true);
+
+    // --- Stock Adjustment Success Handler (for dialogs) ---
+    const handleStockAdjustmentSuccess = () => {
+        if (isMounted.current) {
+            setIsAddStockDialogOpen(false);
+            setIsReduceStockDialogOpen(false);
+        }
+        queryClient.invalidateQueries({ queryKey: ["inventoryItem", itemId] });
+        queryClient.invalidateQueries({
+            queryKey: ["stockTransactions", itemId],
+        });
+    };
+
     // --- Data for Components ---
     const headerItemData = {
         id: item.id,
@@ -137,16 +186,16 @@ export function ItemDetailsClientSection({
         categories: item.categories ? { name: item.categories.name } : null,
     };
 
-    const primaryMetricsData = {
-        itemId: itemId,
+    // Calculate metrics using the helper function
+    const metricInputs: MetricInputs = {
         stock_quantity: item.stock_quantity,
-        reorder_point: item.reorder_point,
-        unit: item.unit,
         selling_price: item.selling_price,
         average_purchase_price: item.average_purchase_price,
         last_purchase_price: item.last_purchase_price,
         secondLastPurchasePrice: secondLastPurchasePrice,
     };
+    const calculatedMetrics: CalculatedMetrics =
+        calculateInventoryMetrics(metricInputs);
 
     // --- Render ---
     return (
@@ -157,20 +206,52 @@ export function ItemDetailsClientSection({
                 onDeleteClick={() => setIsDeleteDialogOpen(true)}
             />
 
-            <PrimaryMetrics
-                {...primaryMetricsData}
-                itemName={item.item_name}
-                className="mb-6"
-            />
+            {/* New Metric Cards Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                <StockLevelCard
+                    itemId={itemId}
+                    itemName={item.item_name}
+                    stock_quantity={item.stock_quantity}
+                    reorder_point={item.reorder_point}
+                    unit={item.unit}
+                    onAddStockClick={handleOpenAddStock}
+                    onReduceStockClick={handleOpenReduceStock}
+                    onSaveReorderPoint={handleSaveReorderPoint}
+                    isSavingReorderPoint={updateReorderPointMutation.isPending}
+                    className="xl:col-span-1"
+                />
+                <div className="md:col-span-1 lg:col-span-2 xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <PricingCard
+                        selling_price={item.selling_price}
+                        average_purchase_price={item.average_purchase_price}
+                        last_purchase_price={item.last_purchase_price}
+                        lastVsAvgDiffPercent={
+                            calculatedMetrics.lastVsAvgDiffPercent
+                        }
+                        lastVsSecondLastDiffValue={
+                            calculatedMetrics.lastVsSecondLastDiffValue
+                        }
+                        unit={item.unit}
+                        className="md:col-span-1"
+                    />
+                    <ProfitabilityCard
+                        estimatedStockValue={
+                            calculatedMetrics.estimatedStockValue
+                        }
+                        profitPerUnit={calculatedMetrics.profitPerUnit}
+                        profitMargin={calculatedMetrics.profitMargin}
+                        markup={calculatedMetrics.markup}
+                        unit={item.unit}
+                        className="md:col-span-2"
+                    />
+                </div>
+            </div>
 
             <Tabs defaultValue="details" className="w-full">
                 <TabsList
                     className={cn(
                         "grid w-full grid-cols-2 md:w-[400px] mb-6",
                         "sticky z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-                        // The ItemDetailHeader is sticky at top-0 with pt-4 and pb-4 (32px total),
-                        // plus the content height and any margins. From examining the component,
-                        // a safe estimate would be around 92px total for the header.
                         "top-[92px]",
                         "border-b shadow-sm",
                         "transition-all duration-300"
@@ -248,7 +329,7 @@ export function ItemDetailsClientSection({
                             <Separator />
                             <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
-                                    Ultima actualizare
+                                    Actualizat ultima dată
                                 </dt>
                                 <dd>{formatDate(item.updated_at)}</dd>
                             </div>
@@ -261,7 +342,7 @@ export function ItemDetailsClientSection({
                     className="space-y-6 animate-in fade-in-50 slide-in-from-right-1 duration-300"
                 >
                     <StockTransactionHistory
-                        itemId={item.id}
+                        itemId={itemId}
                         itemName={item.item_name}
                         currentStock={item.stock_quantity}
                         transactions={initialTransactionHistory}
@@ -273,38 +354,21 @@ export function ItemDetailsClientSection({
             {/* Delete Confirmation Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
-                onOpenChange={(open) => {
-                    if (isMounted.current) {
-                        setIsDeleteDialogOpen(open);
-                    }
-                }}
+                onOpenChange={setIsDeleteDialogOpen}
             >
-                <DialogContent className="shadow-lg border-destructive/20 animate-in fade-in-50 duration-300">
+                <DialogContent>
                     <DialogHeader>
-                        <DialogTitle className="text-destructive font-bold text-xl">
-                            Confirmă Ștergerea
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground/90">
-                            Ești sigur că vrei să ștergi articolul{" "}
-                            <span className="font-semibold text-foreground">
-                                &quot;{item.item_name}&quot;
-                            </span>
-                            ?
-                            <span className="block mt-1 text-destructive/80 font-medium">
-                                Această acțiune nu poate fi anulată.
-                            </span>
+                        <DialogTitle>Confirmare Ștergere</DialogTitle>
+                        <DialogDescription>
+                            Ești sigur că vrei să ștergi articolul &quot;
+                            {item.item_name}&quot;? Această acțiune nu poate fi
+                            anulată.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="gap-2">
+                    <DialogFooter>
                         <Button
                             variant="outline"
-                            disabled={deleteMutation.isPending}
-                            className="transition-all duration-200 hover:bg-background"
-                            onClick={() => {
-                                if (isMounted.current) {
-                                    setIsDeleteDialogOpen(false);
-                                }
-                            }}
+                            onClick={() => setIsDeleteDialogOpen(false)}
                         >
                             Anulează
                         </Button>
@@ -312,13 +376,61 @@ export function ItemDetailsClientSection({
                             variant="destructive"
                             onClick={() => deleteMutation.mutate([itemId])}
                             disabled={deleteMutation.isPending}
-                            className="transition-all duration-200 hover:bg-destructive/90"
                         >
                             {deleteMutation.isPending
                                 ? "Ștergere..."
-                                : "Confirmă Ștergerea"}
+                                : "Șterge"}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Stock Dialog */}
+            <Dialog
+                open={isAddStockDialogOpen}
+                onOpenChange={setIsAddStockDialogOpen}
+            >
+                <DialogContent
+                    className="sm:max-w-[700px] p-0 border-0 max-h-[90vh] overflow-hidden flex flex-col"
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                    <IncreaseStockForm
+                        itemId={itemId}
+                        itemName={item.item_name}
+                        unit={item.unit}
+                        currentStock={item.stock_quantity}
+                        onSuccess={handleStockAdjustmentSuccess}
+                        onClose={() => {
+                            if (isMounted.current) {
+                                setIsAddStockDialogOpen(false);
+                            }
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
+
+            {/* Reduce Stock Dialog */}
+            <Dialog
+                open={isReduceStockDialogOpen}
+                onOpenChange={setIsReduceStockDialogOpen}
+            >
+                <DialogContent
+                    className="sm:max-w-[700px] p-0 border-0 max-h-[90vh] overflow-hidden flex flex-col"
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                    <DecreaseStockForm
+                        itemId={itemId}
+                        itemName={item.item_name}
+                        unit={item.unit}
+                        currentStock={item.stock_quantity}
+                        averagePurchasePrice={item.average_purchase_price}
+                        onSuccess={handleStockAdjustmentSuccess}
+                        onClose={() => {
+                            if (isMounted.current) {
+                                setIsReduceStockDialogOpen(false);
+                            }
+                        }}
+                    />
                 </DialogContent>
             </Dialog>
         </>
