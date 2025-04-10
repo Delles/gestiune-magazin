@@ -1,24 +1,13 @@
 // src/app/(authenticated)/inventory/_components/inventory-list.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation"; // Keep useRouter
-import {
-    useReactTable,
-    getCoreRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
-    getFilteredRowModel,
-    getFacetedRowModel,
-    getFacetedUniqueValues,
-    flexRender,
-    SortingState,
-    ColumnFiltersState,
-    RowSelectionState,
-    VisibilityState,
-    Row,
-} from "@tanstack/react-table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Row, flexRender } from "@tanstack/react-table";
+import { format as formatDate, parseISO } from "date-fns"; // Re-added for potential use in export
+import { ro } from "date-fns/locale"; // Re-added for potential use in export
+import { saveAs } from "file-saver"; // Needed for CSV export
+
 import {
     Table,
     TableBody,
@@ -28,429 +17,197 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { TooltipProvider } from "@/components/ui/tooltip"; // Keep provider for rows
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Trash2, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog,
     DialogContent,
-    DialogClose,
     DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { useDebounce } from "@/hooks/use-debounce"; // Corrected path
-import { toast } from "sonner";
-import InlineEditFormRow from "./inline-edit-form";
-import DisplayRow from "./display-row";
-import { InventoryItem, Category } from "../../types/types"; // Keep types
-// --- Import API Functions ---
-import {
-    getInventoryItems,
-    getCategories,
-    deleteInventoryItems,
-    updateItemReorderPoint,
-} from "../../_data/api";
-import { cn } from "@/lib/utils"; // Ensure cn is imported
-import { formatCurrency } from "@/lib/utils"; // Add formatCurrency import
+import { cn, formatCurrency } from "@/lib/utils";
+import { InventoryItem } from "../../types/types"; // Keep types
 
-// --- Import Child Components ---
-import { columns } from "./inventory-columns";
-import { InventoryTableToolbar } from "./inventory-table-toolbar"; // Add import
+// Import Hooks
+import { useInventoryData } from "@/hooks/use-inventory-data";
+import { useInventoryTable } from "@/hooks/use-inventory-table";
+
+// Import Child Components
+import { InventoryTableToolbar } from "./inventory-table-toolbar";
 import { InventoryBulkActions } from "./inventory-bulk-actions";
 import { InventoryTablePagination } from "./inventory-table-pagination";
-// START: Import new filter types from sidebar
-import {
-    StockValueRangeFilter,
-    ReorderPointFilter,
-} from "./inventory-filter-sidebar";
-// END: Import new filter types
+import InlineEditFormRow from "./inline-edit-form";
+import DisplayRow from "./display-row";
+import { toast } from "sonner"; // Import toast
 
-// Remove unused date-fns imports
-// import { format as formatDate, parseISO } from "date-fns";
-// import { ro } from "date-fns/locale";
-// Import popover content
+// Helper function (can be moved to utils if used elsewhere)
+const getDensityPadding = (density: string) => {
+    switch (density) {
+        case "compact":
+            return "py-1 px-2 text-xs";
+        case "comfortable":
+            return "py-3 px-2";
+        case "normal":
+        default:
+            return "py-2 px-2";
+    }
+};
 
 export default function InventoryList() {
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-    const [globalFilter, setGlobalFilter] = useState("");
-    const debouncedGlobalFilter = useDebounce(globalFilter, 300);
-    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-    const [density, setDensity] = useState<
-        "compact" | "normal" | "comfortable"
-    >("normal");
-
-    // START: Add state for new filters
-    const [stockValueRange, setStockValueRange] =
-        useState<StockValueRangeFilter>({ min: null, max: null });
-    const [reorderPointFilter, setReorderPointFilter] =
-        useState<ReorderPointFilter>(null); // null = any
-    // END: Add state for new filters
-
-    // Dialog/Sheet/Popover states
-    const [editingRowId, setEditingRowId] = useState<string | null>(null);
-    const [adjustingStockItem, setAdjustingStockItem] =
-        useState<InventoryItem | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    // TODO: Reinstate when Add Item functionality is implemented
-    // const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
-    const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
-    const [reorderPointItemId, setReorderPointItemId] = useState<string | null>(
-        null
-    );
-    // Remove unused state for now
-    // const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
-
-    const queryClient = useQueryClient();
+    const isMountedRef = useRef(false);
     const router = useRouter();
-    const searchParams = useSearchParams(); // Read search params
+    const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
 
-    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-        {}
-    );
-
-    // Get status filter value outside useEffect
-    const statusFilterValueFromUrl = searchParams.get("status");
-
-    // Combined useEffect for Persistence (Density & Visibility)
     useEffect(() => {
-        const savedDensity = localStorage.getItem("inventoryTableDensity") as
-            | typeof density
-            | null;
-        if (savedDensity) setDensity(savedDensity);
-
-        const savedVisibility = localStorage.getItem(
-            "inventoryTableVisibility"
-        );
-        if (savedVisibility) {
-            try {
-                setColumnVisibility(JSON.parse(savedVisibility));
-            } catch (e) {
-                console.error("Failed to parse saved column visibility:", e);
-                localStorage.removeItem("inventoryTableVisibility");
-            }
-        }
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
     }, []);
 
-    // useEffect for URL-based filtering
-    useEffect(() => {
-        // Use the extracted value
-        if (
-            statusFilterValueFromUrl === "low_stock" ||
-            statusFilterValueFromUrl === "out_of_stock"
-        ) {
-            setColumnFilters((prev) => {
-                const otherFilters = prev.filter(
-                    (f) => f.id !== "stock_quantity"
-                );
-                return [
-                    ...otherFilters,
-                    { id: "stock_quantity", value: [statusFilterValueFromUrl] }, // Use the variable here too
-                ];
-            });
-        } else {
-            setColumnFilters((prev) =>
-                prev.filter((f) => f.id !== "stock_quantity")
-            );
-        }
-        // Depend on the extracted variable
-    }, [statusFilterValueFromUrl]);
-
-    // Density Change Handler
-    const handleDensityChange = (newDensity: typeof density) => {
-        setDensity(newDensity);
-        localStorage.setItem("inventoryTableDensity", newDensity);
-    };
-
-    // Visibility Change Handler (handled by table.onColumnVisibilityChange)
-    const handleVisibilityChange = (
-        updater: React.SetStateAction<VisibilityState>
-    ) => {
-        const newState =
-            typeof updater === "function" ? updater(columnVisibility) : updater;
-        setColumnVisibility(newState);
-        localStorage.setItem(
-            "inventoryTableVisibility",
-            JSON.stringify(newState)
-        );
-    };
-
-    // --- Data Fetching ---
+    // --- Data Fetching & Mutations ---
     const {
-        data: inventoryItems = [],
-        isLoading: isLoadingItems,
-        error: itemsError,
-    } = useQuery<InventoryItem[], Error>({
-        queryKey: ["inventoryItems"],
-        queryFn: getInventoryItems,
-    });
+        inventoryItems,
+        categories,
+        isLoading,
+        queryError,
+        deleteMutation,
+        updateReorderPointMutation,
+    } = useInventoryData();
 
+    // --- Table State & Logic ---
     const {
-        data: categories = [],
-        isLoading: isLoadingCategories,
-        error: categoriesError,
-    } = useQuery<Category[], Error>({
-        queryKey: ["categories"],
-        queryFn: getCategories,
-    });
-    // --- End Data Fetching ---
-
-    // --- Mutations ---
-    const deleteMutation = useMutation({
-        mutationFn: deleteInventoryItems,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-            setRowSelection({});
-            setIsDeleteDialogOpen(false);
-            toast.success("Selected items deleted successfully.");
-        },
-        onError: (error: Error) => {
-            toast.error(`Failed to delete items: ${error.message}`);
-            setIsDeleteDialogOpen(false);
-        },
-    });
-
-    const updateReorderPointMutation = useMutation({
-        mutationFn: (variables: { id: string; reorder_point: number | null }) =>
-            updateItemReorderPoint(variables.id, variables.reorder_point),
-        onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: ["inventoryItems"] });
-            queryClient.invalidateQueries({
-                queryKey: ["inventoryItem", variables.id],
-            });
-            setReorderPointItemId(null); // Close popover (by clearing the ID)
-            toast.success("Reorder point updated successfully.");
-        },
-        onError: (error: Error) => {
-            toast.error(`Failed to update reorder point: ${error.message}`);
-            // Close popover even on error for simplicity, or handle differently
-            // setReorderPointItemId(null);
-        },
-    });
-    // --- End Mutations ---
-
-    // START: Add handlers for new filters
-    const handleStockValueRangeChange = (
-        type: "min" | "max",
-        value: string
-    ) => {
-        const numericValue = value === "" ? null : parseFloat(value);
-        setStockValueRange((prev) => ({
-            ...prev,
-            [type]: numericValue,
-        }));
-    };
-
-    const handleReorderPointFilterChange = (checked: boolean) => {
-        // If checked is true, filter for items with a reorder point (filter = true)
-        // If checked is false, reset the filter (filter = null)
-        setReorderPointFilter(checked ? true : null);
-    };
-    // END: Add handlers for new filters
-
-    // --- Filtering Logic ---
-    // Filtering will be handled by:
-    // 1. TanStack Table state (columnFilters, globalFilter)
-    // 2. Post-filtering logic applied to `table.getFilteredRowModel().rows` for custom filters
-    // --- End Filtering Logic ---
-
-    // --- Table Instance ---
-    const table = useReactTable<InventoryItem>({
-        data: inventoryItems, // Use the raw data
-        columns,
-        state: {
-            sorting,
-            columnFilters,
-            globalFilter: debouncedGlobalFilter,
-            rowSelection,
-            columnVisibility,
-        },
-        enableRowSelection: true,
-        onRowSelectionChange: setRowSelection,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        onColumnVisibilityChange: handleVisibilityChange,
-        initialState: { pagination: { pageSize: 10 } },
-        onGlobalFilterChange: setGlobalFilter,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getFacetedRowModel: getFacetedRowModel(),
-        getFacetedUniqueValues: getFacetedUniqueValues(),
-    });
-    // --- End Table Instance ---
-
-    // --- Post-Filtering for Custom Logic ---
-    const filteredRows = table.getFilteredRowModel().rows;
-
-    const finalFilteredRows = useMemo(() => {
-        return filteredRows.filter((row: Row<InventoryItem>) => {
-            const item = row.original;
-            // Stock Value Filter
-            const stockValue =
-                (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
-            if (
-                stockValueRange.min !== null &&
-                stockValue < stockValueRange.min
-            )
-                return false;
-            if (
-                stockValueRange.max !== null &&
-                stockValue > stockValueRange.max
-            )
-                return false;
-
-            // Has Reorder Point Filter
-            if (
-                reorderPointFilter === true &&
-                (item.reorder_point === null ||
-                    item.reorder_point === undefined)
-            )
-                return false;
-            // Add logic for reorderPointFilter === false if needed
-
-            return true; // Item passes all custom filters
-        });
-    }, [
-        filteredRows, // Depend on the extracted variable
+        table,
+        finalFilteredRows, // Use this for rendering the table body
+        totalInventoryValue,
+        density,
+        handleDensityChange,
+        globalFilter,
+        setGlobalFilter,
+        rowSelection,
+        editingRowId,
+        handleEditClick,
+        handleCancelEdit,
         stockValueRange,
         reorderPointFilter,
-    ]);
+        handleStockValueRangeChange,
+        handleReorderPointFilterChange,
+        handleCategoryFilterChange,
+        handleStockFilterChange,
+        clearAllFilters,
+        isDeleteDialogOpen,
+        handleDeleteSelected, // Opens bulk delete dialog
+        closeDeleteDialog,
+        isDeleteSingleItemDialogOpen,
+        deletingItem,
+        handleDeleteItemClick, // Opens single delete dialog
+        closeSingleItemDeleteDialog,
+        adjustingStockItem,
+        openStockAdjustmentDialog, // Opens adjustment info dialog
+        closeStockAdjustmentDialog,
+        reorderPointItemId,
+        setReorderPointItemId,
+    } = useInventoryTable({
+        inventoryItems,
+        categories,
+        deleteMutationIsPending: deleteMutation.isPending,
+        updateReorderPointMutationIsPending:
+            updateReorderPointMutation.isPending,
+    });
 
-    // --- Calculated Values ---
-    const totalInventoryValue = useMemo(() => {
-        // Calculate based on the final filtered rows
-        return finalFilteredRows.reduce(
-            (sum: number, row: Row<InventoryItem>) => {
-                const quantity = row.original.stock_quantity ?? 0;
-                const avgPrice = row.original.average_purchase_price ?? 0;
-                return sum + quantity * avgPrice;
-            },
-            0
-        );
-    }, [finalFilteredRows]);
+    // --- Deletion Handlers ---
+    // Wrap mutation calls with dialog closing logic
+    const confirmDeleteSelected = useCallback(() => {
+        // Get the actual UUIDs from the selected rows' original data
+        const selectedIds = table
+            .getSelectedRowModel()
+            .rows.map((row) => row.original.id); // <-- Correctly map to UUIDs
 
-    // --- Filter Logic ---
-    const categoryFilterValue =
-        (table.getColumn("category_name")?.getFilterValue() as
-            | string[]
-            | undefined) ?? [];
-    const stockFilterValue =
-        (table.getColumn("stock_quantity")?.getFilterValue() as
-            | string[]
-            | undefined) ?? [];
-
-    const handleCategoryFilterChange = (
-        categoryId: string,
-        checked: boolean | string
-    ) => {
-        const category = categories.find((c) => c.id === categoryId);
-        if (!category) return;
-        const categoryName = category.name;
-        let newValues: string[];
-        if (checked) {
-            newValues = [...categoryFilterValue, categoryName];
-        } else {
-            newValues = categoryFilterValue.filter(
-                (name) => name !== categoryName
-            );
-        }
-        table
-            .getColumn("category_name")
-            ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
-    };
-
-    const handleStockFilterChange = (
-        statusValue: string,
-        checked: boolean | string
-    ) => {
-        let newValues: string[];
-        if (checked) {
-            newValues = [...stockFilterValue, statusValue];
-        } else {
-            newValues = stockFilterValue.filter((val) => val !== statusValue);
-        }
-        table
-            .getColumn("stock_quantity")
-            ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
-    };
-
-    const clearAllFilters = () => {
-        setColumnFilters([]);
-        setGlobalFilter("");
-        setStockValueRange({ min: null, max: null });
-        setReorderPointFilter(null);
-        router.push("/inventory");
-    };
-
-    // Remove commented out variable
-    // const hasActiveFilters = table.getState().columnFilters.length > 0;
-    // --- End Filter Logic ---
-
-    // --- Helper Handlers ---
-    const handleDeleteSelected = () => {
-        setIsDeleteDialogOpen(true);
-    };
-
-    const confirmDelete = () => {
-        const selectedIds = Object.keys(rowSelection);
-        deleteMutation.mutate(selectedIds);
-    };
-
-    const handleEditClick = (itemId: string) => {
-        setEditingRowId(itemId);
-    };
-    const handleCancelEdit = () => {
-        setEditingRowId(null);
-    };
-    const handleSaveEdit = () => {
-        setEditingRowId(null);
-    };
-
-    // Define state for modals/dialogs related to the new actions
-    // const [adjustingReorderPointItem, setAdjustingReorderPointItem] =
-    //     useState<InventoryItem | null>(null);
-    const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(
-        null
-    );
-    const [isDeleteSingleItemDialogOpen, setIsDeleteSingleItemDialogOpen] =
-        useState(false);
-
-    const handleSaveReorderPoint = (newPoint: number | null) => {
-        if (reorderPointItemId) {
-            updateReorderPointMutation.mutate({
-                id: reorderPointItemId,
-                reorder_point: newPoint,
-            });
-        } // Popover closing is handled by onSuccess/onOpenChange
-    };
-
-    const handleDeleteItemClick = (item: InventoryItem) => {
-        console.log("Delete Item:", item.id); // Placeholder
-        setDeletingItem(item);
-        setIsDeleteSingleItemDialogOpen(true); // Open single item delete confirmation dialog
-    };
-
-    const confirmSingleItemDelete = () => {
-        if (deletingItem) {
-            deleteMutation.mutate([deletingItem.id]); // Use existing bulk delete mutation
-        }
-        setIsDeleteSingleItemDialogOpen(false);
-        setDeletingItem(null);
-    };
-
-    // TODO: Reinstate when export functionality is implemented/refined
-    /*
-    const handleExportCsv = () => {
-        const rows = table.getFilteredRowModel().rows;
-        if (!rows.length) {
-            toast.warning("No data to export.");
+        if (selectedIds.length === 0) {
+            toast.warning("No items selected for deletion.");
+            closeDeleteDialog();
             return;
         }
 
+        deleteMutation.mutate(selectedIds, {
+            onSuccess: () => {
+                if (!isMountedRef.current) return;
+                closeDeleteDialog();
+                table.resetRowSelection(); // Reset selection after successful bulk delete
+            },
+            onError: () => {
+                if (!isMountedRef.current) return;
+                closeDeleteDialog(); // Close dialog even on error
+            },
+        });
+    }, [table, deleteMutation, closeDeleteDialog]);
+
+    const confirmSingleItemDelete = useCallback(() => {
+        if (deletingItem) {
+            deleteMutation.mutate([deletingItem.id], {
+                onSuccess: () => {
+                    if (!isMountedRef.current) return;
+                    closeSingleItemDeleteDialog();
+                },
+                onError: () => {
+                    if (!isMountedRef.current) return;
+                    closeSingleItemDeleteDialog(); // Close dialog even on error
+                },
+            });
+        }
+    }, [deletingItem, deleteMutation, closeSingleItemDeleteDialog]);
+
+    // --- Reorder Point Save Handler ---
+    const handleSaveReorderPoint = useCallback(
+        (newPoint: number | null) => {
+            if (reorderPointItemId) {
+                updateReorderPointMutation.mutate(
+                    {
+                        id: reorderPointItemId,
+                        reorder_point: newPoint,
+                    },
+                    {
+                        onSuccess: () => {
+                            if (!isMountedRef.current) return;
+                            setReorderPointItemId(null); // Close popover on success
+                        },
+                        // onError handled globally by the hook (toast)
+                        // Popover closure on error might depend on specific UX requirements
+                    }
+                );
+            }
+        },
+        [reorderPointItemId, updateReorderPointMutation, setReorderPointItemId]
+    );
+
+    // --- Inline Edit Save Handler ---
+    // TODO: Implement actual save logic for inline editing (needs API endpoint & mutation)
+    const handleSaveEdit = useCallback(() => {
+        // Currently just closes the edit form
+        // Replace with mutation call when backend is ready
+        // Example:
+        // saveEditMutation.mutate(editedData, {
+        //    onSuccess: () => setEditingRowId(null)
+        // });
+        console.log("Save Action Triggered for row:", editingRowId);
+        toast.info("Save functionality for inline edit not yet implemented.");
+        handleCancelEdit(); // Using handleCancelEdit from hook to close form for now
+    }, [editingRowId, handleCancelEdit]); // Depend on editingRowId and handleCancelEdit
+
+    // --- Export Handler ---
+    // TODO: Reinstate and test export functionality - Implemented below
+    const handleExportCsv = useCallback(() => {
+        // Use finalFilteredRows from the hook which already applies custom filters
+        const rowsToExport = finalFilteredRows;
+        if (!rowsToExport.length) {
+            toast.warning("No data to export based on current filters.");
+            return;
+        }
+
+        // Define headers based on visible columns or a fixed set
         const headers = [
             "ID",
             "Item Name",
@@ -477,60 +234,62 @@ export default function InventoryList() {
             }
         };
 
-        const data = rows.map((row) => {
+        // Map the filtered rows to CSV format
+        const data = rowsToExport.map((row) => {
             const item = row.original;
-            const stockValue = (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
+            const stockValue =
+                (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
+            // Ensure consistent order matching headers
             return [
-                `"${item.id}"`, // Ensure ID is treated as string, even if numeric
-                `"${item.item_name?.replace(/'"'/g, "''") ?? ""}"`, // Escape quotes
-                `"${item.category_name ?? "Uncategorized"}"`, // Handle null category
+                `"${item.id}"`,
+                `"${item.item_name?.replace(/"/g, '""') ?? ""}"`, // Escape double quotes
+                `"${item.category_name ?? "Uncategorized"}"`,
                 item.stock_quantity ?? 0,
-                `"${item.unit ?? ""}"`, // Handle null unit
+                `"${item.unit ?? ""}"`,
                 item.average_purchase_price ?? 0,
                 item.last_purchase_price ?? 0,
                 item.selling_price ?? 0,
                 stockValue,
                 item.reorder_point ?? "N/A",
-                `"${formatRoDate(item.created_at)}"`, // Format date
-                `"${formatRoDate(item.updated_at)}"`, // Format date
+                `"${formatRoDate(item.created_at)}"`,
+                `"${formatRoDate(item.updated_at)}"`,
             ].join(",");
         });
 
-        const csvContent = [
-            headers.join(","),
-            ...data,
-        ].join("\n");
+        const csvContent = [headers.join(","), ...data].join("\n");
 
-        const blob = new Blob(["\uFEFF" + csvContent], { // Add BOM for Excel
-            type: "text/csv;charset=utf-8;",
-        });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `inventory-export-${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // Use FileSaver.js for reliable saving
+        try {
+            const blob = new Blob(["\uFEFF" + csvContent], {
+                // Add BOM for Excel
+                type: "text/csv;charset=utf-8;",
+            });
+            saveAs(
+                blob,
+                `inventory-export-${new Date().toISOString().split("T")[0]}.csv`
+            );
+            toast.success("Data exported to CSV successfully.");
+        } catch (error) {
+            console.error("Error exporting CSV:", error);
+            toast.error("Failed to export data to CSV.");
+        }
+    }, [finalFilteredRows]); // Depends on the currently filtered rows
 
-        toast.success("Data exported to CSV.");
-    };
-    */
-
-    // --- Loading & Error States ---
-    const isLoading = isLoadingItems || isLoadingCategories;
-    const queryError = itemsError || categoriesError;
-
+    // --- Render Logic ---
     if (isLoading) {
+        // Basic skeleton remains
         return (
-            <div className="space-y-4">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-12 w-full" />
+            <div className="space-y-4 p-1">
+                <Skeleton className="h-9 w-full" />{" "}
+                {/* Placeholder for title/value */}
+                <Skeleton className="h-12 w-full" />{" "}
+                {/* Placeholder for Toolbar */}
+                {/* Simplified skeleton for table rows */}
                 {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full" />
+                    <Skeleton key={i} className="h-10 w-full" />
                 ))}
-                <Skeleton className="h-9 w-full mt-4" />
+                <Skeleton className="h-9 w-full mt-4" />{" "}
+                {/* Placeholder for Pagination */}
             </div>
         );
     }
@@ -542,12 +301,10 @@ export default function InventoryList() {
             </div>
         );
     }
-    // --- End Loading & Error States ---
 
     return (
         <TooltipProvider>
             <div className={cn("space-y-4 p-1", density)}>
-                {/* Render Total Value Above Toolbar */}
                 <div className="flex justify-between items-center flex-wrap gap-2">
                     <h2 className="text-2xl font-semibold tracking-tight">
                         Inventory List
@@ -562,40 +319,33 @@ export default function InventoryList() {
                     </div>
                 </div>
 
-                {/* Toolbar */}
                 <InventoryTableToolbar
                     table={table}
                     categories={categories}
                     globalFilter={globalFilter}
                     setGlobalFilter={setGlobalFilter}
                     density={density}
-                    // @ts-expect-error // TODO: Fix InventoryTableToolbarProps to include setDensity
-                    setDensity={handleDensityChange}
-                    // START: Pass new filters state and handlers
+                    handleDensityChange={handleDensityChange} // Pass the handler from the hook
                     stockValueRange={stockValueRange}
                     reorderPointFilter={reorderPointFilter}
                     handleStockValueRangeChange={handleStockValueRangeChange}
                     handleReorderPointFilterChange={
                         handleReorderPointFilterChange
                     }
-                    // END: Pass new filters state and handlers
-                    filterPopoverOpen={filterPopoverOpen}
-                    setFilterPopoverOpen={setFilterPopoverOpen}
                     handleCategoryFilterChange={handleCategoryFilterChange}
                     handleStockFilterChange={handleStockFilterChange}
                     clearAllFilters={clearAllFilters}
-                    categoryFilterValue={categoryFilterValue}
-                    stockFilterValue={stockFilterValue}
+                    onExportCsv={handleExportCsv} // Pass export handler
+                    isAddSheetOpen={isAddSheetOpen}
+                    setIsAddSheetOpen={setIsAddSheetOpen}
                 />
 
-                {/* Bulk Actions Bar (shown when items selected) */}
                 <InventoryBulkActions
                     selectedRowCount={table.getSelectedRowModel().rows.length}
-                    onDelete={handleDeleteSelected}
+                    onDelete={handleDeleteSelected} // Use handler from hook to open dialog
                     isDeleting={deleteMutation.isPending}
                 />
 
-                {/* Table */}
                 <div className="rounded-md border overflow-hidden">
                     <Table data-density={density}>
                         <TableHeader>
@@ -605,65 +355,61 @@ export default function InventoryList() {
                                         <TableHead
                                             key={header.id}
                                             colSpan={header.colSpan}
-                                            className={cn({
-                                                "py-2 px-2 h-10 text-xs":
-                                                    density === "compact",
-                                                "py-3 px-3 h-11":
-                                                    density === "normal",
-                                                "py-4 px-4 h-12":
-                                                    density === "comfortable",
-                                                "pr-3":
-                                                    header.column.id ===
-                                                    "actions",
-                                            })}
+                                            className={cn(
+                                                getDensityPadding(density),
+                                                {
+                                                    // Use helper
+                                                    "cursor-pointer select-none":
+                                                        header.column.getCanSort(),
+                                                    "w-[100px]":
+                                                        header.id === "select", // Example fixed width
+                                                    "w-[80px] text-right pr-3":
+                                                        header.id === "actions", // Example fixed width
+                                                }
+                                            )}
+                                            style={{
+                                                width:
+                                                    header.getSize() !== 150
+                                                        ? header.getSize()
+                                                        : undefined,
+                                            }} // Apply column sizing if defined
+                                            onClick={header.column.getToggleSortingHandler()}
                                         >
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
+                                                      // Use flexRender here
                                                       header.column.columnDef
                                                           .header,
                                                       header.getContext()
                                                   )}
+                                            {{
+                                                // Add sorting indicator
+                                                asc: " 🔼",
+                                                desc: " 🔽",
+                                            }[
+                                                header.column.getIsSorted() as string
+                                            ] ?? null}
                                         </TableHead>
                                     ))}
                                 </TableRow>
                             ))}
                         </TableHeader>
                         <TableBody>
-                            {isLoadingItems || isLoadingCategories ? (
-                                // Skeleton Loading Rows
-                                Array.from({
-                                    length: table.getState().pagination
-                                        .pageSize,
-                                }).map((_, index) => (
-                                    <TableRow key={`skeleton-${index}`}>
-                                        {table.getAllColumns().map((column) => (
-                                            <TableCell
-                                                key={column.id}
-                                                className={getDensityPadding(
-                                                    density
-                                                )} // Apply density
-                                            >
-                                                <Skeleton className="h-5 w-full" />
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : finalFilteredRows.length ? (
-                                // Use finalFilteredRows for rendering
+                            {finalFilteredRows.length ? (
                                 finalFilteredRows.map((row) => {
                                     const item = row.original;
                                     const isEditing = editingRowId === item.id;
-                                    type TanStackRow = Row<InventoryItem>;
+                                    type TanStackRow = Row<InventoryItem>; // Keep type alias local if only used here
 
                                     if (isEditing) {
                                         return (
                                             <InlineEditFormRow
                                                 key={`${row.id}-edit`}
-                                                item={row.original}
-                                                categories={categories}
-                                                onSave={handleSaveEdit}
-                                                onCancel={handleCancelEdit}
+                                                item={item} // Pass original item data
+                                                categories={categories} // Pass categories needed for dropdown
+                                                onSave={handleSaveEdit} // Use specific save handler
+                                                onCancel={handleCancelEdit} // Use handler from hook
                                                 density={density}
                                                 visibleColumns={table
                                                     .getVisibleLeafColumns()
@@ -676,40 +422,40 @@ export default function InventoryList() {
                                                 key={row.id}
                                                 row={row as TanStackRow}
                                                 density={density}
-                                                router={router}
+                                                router={router} // Pass router instance
+                                                // Pass handlers directly from the component context/props
                                                 setAdjustingStockItem={
-                                                    setAdjustingStockItem
-                                                }
+                                                    openStockAdjustmentDialog
+                                                } // Use handler from hook (accepts null)
                                                 handleEditClick={
                                                     handleEditClick
-                                                }
+                                                } // Use handler from hook
                                                 reorderPointItemId={
                                                     reorderPointItemId
-                                                }
+                                                } // Pass state from hook
                                                 setReorderPointItemId={
                                                     setReorderPointItemId
-                                                }
+                                                } // Pass state setter from hook
                                                 handleSaveReorderPoint={
                                                     handleSaveReorderPoint
-                                                }
+                                                } // Pass the save handler defined above
                                                 isSavingReorderPoint={
                                                     updateReorderPointMutation.isPending
-                                                }
+                                                } // Pass loading state
                                                 handleDeleteItemClick={
                                                     handleDeleteItemClick
-                                                }
+                                                } // Use handler from hook to open dialog
                                             />
                                         );
                                     }
                                 })
                             ) : (
-                                // No results row
                                 <TableRow>
                                     <TableCell
-                                        colSpan={columns.length}
+                                        colSpan={table.getAllColumns().length} // Use dynamic column count
                                         className="h-24 text-center"
                                     >
-                                        No results found.
+                                        No results found matching your filters.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -717,55 +463,63 @@ export default function InventoryList() {
                     </Table>
                 </div>
 
-                {/* Pagination */}
                 <InventoryTablePagination table={table} />
 
-                {/* Stock Adjustment Dialog */}
+                {/* Dialogs */}
+                {/* Stock Adjustment Info Dialog */}
                 {adjustingStockItem && (
                     <Dialog
                         open={!!adjustingStockItem}
                         onOpenChange={(open) => {
-                            if (!open) setAdjustingStockItem(null);
+                            if (!open) closeStockAdjustmentDialog();
                         }}
                     >
-                        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
+                        <DialogContent className="sm:max-w-md">
                             <DialogHeader>
                                 <DialogTitle>
-                                    Adjust Stock for{" "}
+                                    Adjust Stock:{" "}
                                     {adjustingStockItem?.item_name}
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Please use the + and - buttons in the item
-                                    details page to adjust stock.
+                                    Stock adjustments are handled on the item
+                                    details page.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="flex justify-center">
+                            <DialogFooter className="sm:justify-center">
                                 <Button
-                                    variant="outline"
+                                    type="button"
+                                    variant="secondary"
                                     onClick={() => {
-                                        setAdjustingStockItem(null);
-                                        if (adjustingStockItem) {
-                                            router.push(
-                                                `/inventory/${adjustingStockItem.id}`
-                                            );
-                                        }
+                                        router.push(
+                                            `/inventory/${adjustingStockItem.id}`
+                                        );
+                                        closeStockAdjustmentDialog();
                                     }}
                                 >
                                     Go to Item Details
                                 </Button>
-                            </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={closeStockAdjustmentDialog}
+                                >
+                                    Close
+                                </Button>
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 )}
 
-                {/* Delete Confirmation Dialog */}
+                {/* Bulk Delete Confirmation Dialog */}
                 <Dialog
                     open={isDeleteDialogOpen}
-                    onOpenChange={setIsDeleteDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) closeDeleteDialog();
+                    }}
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Are you absolutely sure?</DialogTitle>
+                            <DialogTitle>Confirm Bulk Deletion</DialogTitle>
                             <DialogDescription>
                                 This action cannot be undone. This will
                                 permanently delete the selected{" "}
@@ -773,12 +527,16 @@ export default function InventoryList() {
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
-                            <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                            </DialogClose>
+                            <Button
+                                variant="outline"
+                                onClick={closeDeleteDialog}
+                                disabled={deleteMutation.isPending}
+                            >
+                                Cancel
+                            </Button>
                             <Button
                                 variant="destructive"
-                                onClick={confirmDelete}
+                                onClick={confirmDeleteSelected}
                                 disabled={deleteMutation.isPending}
                             >
                                 {deleteMutation.isPending ? (
@@ -792,34 +550,33 @@ export default function InventoryList() {
                     </DialogContent>
                 </Dialog>
 
-                {/* Confirmation Dialog for Single Item Delete */}
+                {/* Single Item Delete Confirmation Dialog */}
                 <Dialog
                     open={isDeleteSingleItemDialogOpen}
-                    onOpenChange={setIsDeleteSingleItemDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) closeSingleItemDeleteDialog();
+                    }}
                 >
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Confirm Deletion</DialogTitle>
                             <DialogDescription>
                                 Are you sure you want to delete the item
-                                <span className="font-semibold">
-                                    {` ${deletingItem?.item_name}`}
-                                </span>
+                                <span className="font-semibold">{` ${deletingItem?.item_name}`}</span>
                                 ? This action cannot be undone.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
-                            <DialogClose asChild>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setDeletingItem(null)} // Clear item on cancel
-                                >
-                                    Cancel
-                                </Button>
-                            </DialogClose>
+                            <Button
+                                variant="outline"
+                                onClick={closeSingleItemDeleteDialog}
+                                disabled={deleteMutation.isPending}
+                            >
+                                Cancel
+                            </Button>
                             <Button
                                 variant="destructive"
-                                onClick={confirmSingleItemDelete} // Use new handler
+                                onClick={confirmSingleItemDelete}
                                 disabled={deleteMutation.isPending}
                             >
                                 {deleteMutation.isPending && (
@@ -834,17 +591,3 @@ export default function InventoryList() {
         </TooltipProvider>
     );
 }
-
-// --- Helper Functions ---
-
-const getDensityPadding = (density: string) => {
-    switch (density) {
-        case "compact":
-            return "py-1 px-2 text-xs";
-        case "comfortable":
-            return "py-3 px-2";
-        case "normal":
-        default:
-            return "py-2 px-2";
-    }
-};

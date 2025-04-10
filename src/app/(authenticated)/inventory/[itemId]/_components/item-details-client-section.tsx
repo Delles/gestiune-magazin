@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,7 +11,6 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
-    DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,6 +54,15 @@ export function ItemDetailsClientSection({
     const router = useRouter();
     const queryClient = useQueryClient();
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const isMounted = useRef(true);
+
+    // Set up effect to track component mount status
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
 
     // --- Delete Mutation ---
     const deleteMutation = useMutation({
@@ -105,11 +113,17 @@ export function ItemDetailsClientSection({
             });
             // Optionally invalidate the specific item, though we're redirecting anyway
             // queryClient.invalidateQueries({ queryKey: ['inventoryItem', itemId] });
-            router.push("/inventory"); // Redirect to inventory list
+
+            // Use router.push in a setTimeout to ensure it happens after the current render cycle
+            setTimeout(() => {
+                router.push("/inventory"); // Redirect to inventory list
+            }, 0);
         },
         onError: (error) => {
             toast.error(`Eroare la ștergerea articolului: ${error.message}`);
-            setIsDeleteDialogOpen(false); // Close dialog on error
+            if (isMounted.current) {
+                setIsDeleteDialogOpen(false); // Close dialog on error
+            }
         },
     });
 
@@ -158,25 +172,43 @@ export function ItemDetailsClientSection({
                         // plus the content height and any margins. From examining the component,
                         // a safe estimate would be around 92px total for the header.
                         "top-[92px]",
-                        "border-b"
+                        "border-b shadow-sm",
+                        "transition-all duration-300"
                     )}
                 >
-                    <TabsTrigger value="details">Detalii</TabsTrigger>
-                    <TabsTrigger value="history">Istoric</TabsTrigger>
+                    <TabsTrigger
+                        value="details"
+                        className="transition-all duration-200 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/60"
+                    >
+                        Detalii
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="history"
+                        className="transition-all duration-200 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/60"
+                    >
+                        Istoric
+                    </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="details" className="space-y-6">
+                <TabsContent
+                    value="details"
+                    className="space-y-6 animate-in fade-in-50 slide-in-from-left-1 duration-300"
+                >
                     <div className="space-y-4">
-                        <h3 className="text-lg font-medium">Proprietăți</h3>
-                        <p className="text-sm text-muted-foreground pl-2">
+                        <h3 className="text-lg font-medium bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent inline-block">
+                            Descriere
+                        </h3>
+                        <p className="text-sm text-muted-foreground pl-2 border-l-2 border-primary/20 py-1">
                             {item.description || "Nicio descriere introdusă."}
                         </p>
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-lg font-medium">Metadata</h3>
-                        <dl className="space-y-3 border p-4 rounded-lg bg-muted/40">
-                            <div className="flex justify-between items-center text-sm">
+                        <h3 className="text-lg font-medium bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent inline-block">
+                            Informații suplimentare
+                        </h3>
+                        <dl className="space-y-3 border p-4 rounded-lg bg-muted/40 shadow-sm hover:shadow transition-all duration-300 hover:bg-muted/50">
+                            <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
                                     Categorie
                                 </dt>
@@ -188,14 +220,14 @@ export function ItemDetailsClientSection({
                                 </dd>
                             </div>
                             <Separator />
-                            <div className="flex justify-between items-center text-sm">
+                            <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
                                     Unitate de măsură
                                 </dt>
                                 <dd>{item.unit}</dd>
                             </div>
                             <Separator />
-                            <div className="flex justify-between items-center text-sm">
+                            <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
                                     Punct de reaprovizionare
                                 </dt>
@@ -207,14 +239,14 @@ export function ItemDetailsClientSection({
                                 </dd>
                             </div>
                             <Separator />
-                            <div className="flex justify-between items-center text-sm">
+                            <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
                                     Creat la
                                 </dt>
                                 <dd>{formatDate(item.created_at)}</dd>
                             </div>
                             <Separator />
-                            <div className="flex justify-between items-center text-sm">
+                            <div className="flex justify-between items-center text-sm hover:bg-muted/50 p-1 rounded-md transition-colors duration-200">
                                 <dt className="text-muted-foreground">
                                     Ultima actualizare
                                 </dt>
@@ -224,7 +256,10 @@ export function ItemDetailsClientSection({
                     </div>
                 </TabsContent>
 
-                <TabsContent value="history" className="space-y-6">
+                <TabsContent
+                    value="history"
+                    className="space-y-6 animate-in fade-in-50 slide-in-from-right-1 duration-300"
+                >
                     <StockTransactionHistory
                         itemId={item.id}
                         itemName={item.item_name}
@@ -238,30 +273,46 @@ export function ItemDetailsClientSection({
             {/* Delete Confirmation Dialog */}
             <Dialog
                 open={isDeleteDialogOpen}
-                onOpenChange={setIsDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (isMounted.current) {
+                        setIsDeleteDialogOpen(open);
+                    }
+                }}
             >
-                <DialogContent>
+                <DialogContent className="shadow-lg border-destructive/20 animate-in fade-in-50 duration-300">
                     <DialogHeader>
-                        <DialogTitle>Confirmă Ștergerea</DialogTitle>
-                        <DialogDescription>
-                            Ești sigur că vrei să ștergi articolul &quot;
-                            {item.item_name}&quot;? Această acțiune nu poate fi
-                            anulată.
+                        <DialogTitle className="text-destructive font-bold text-xl">
+                            Confirmă Ștergerea
+                        </DialogTitle>
+                        <DialogDescription className="text-muted-foreground/90">
+                            Ești sigur că vrei să ștergi articolul{" "}
+                            <span className="font-semibold text-foreground">
+                                &quot;{item.item_name}&quot;
+                            </span>
+                            ?
+                            <span className="block mt-1 text-destructive/80 font-medium">
+                                Această acțiune nu poate fi anulată.
+                            </span>
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button
-                                variant="outline"
-                                disabled={deleteMutation.isPending}
-                            >
-                                Anulează
-                            </Button>
-                        </DialogClose>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            disabled={deleteMutation.isPending}
+                            className="transition-all duration-200 hover:bg-background"
+                            onClick={() => {
+                                if (isMounted.current) {
+                                    setIsDeleteDialogOpen(false);
+                                }
+                            }}
+                        >
+                            Anulează
+                        </Button>
                         <Button
                             variant="destructive"
                             onClick={() => deleteMutation.mutate([itemId])}
                             disabled={deleteMutation.isPending}
+                            className="transition-all duration-200 hover:bg-destructive/90"
                         >
                             {deleteMutation.isPending
                                 ? "Ștergere..."

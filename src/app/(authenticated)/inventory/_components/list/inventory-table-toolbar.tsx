@@ -6,7 +6,6 @@ import { Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -59,8 +58,6 @@ interface InventoryTableToolbarProps {
     categories: Category[];
     density: "compact" | "normal" | "comfortable";
     handleDensityChange: (value: "compact" | "normal" | "comfortable") => void;
-    // Visibility state is managed internally by table.setColumnVisibility, no need to pass state itself
-    // handleVisibilityChange: (updater: React.SetStateAction<VisibilityState>) => void; // No longer needed here
     globalFilter: string;
     setGlobalFilter: (value: string) => void;
     clearAllFilters: () => void;
@@ -78,11 +75,10 @@ interface InventoryTableToolbarProps {
         statusValue: string,
         checked: boolean | string
     ) => void;
-    onExportCsv: () => void; // Add prop for export handler
+    onExportCsv: () => void; // Prop for export handler
 }
 
 export function InventoryTableToolbar({
-    // Make sure to export the component
     table,
     categories,
     density,
@@ -98,7 +94,7 @@ export function InventoryTableToolbar({
     handleReorderPointFilterChange,
     handleCategoryFilterChange,
     handleStockFilterChange,
-    onExportCsv, // Destructure new prop
+    onExportCsv,
 }: InventoryTableToolbarProps) {
     // Get active filter values
     const categoryFilterColumn = table.getColumn("category_name");
@@ -149,7 +145,15 @@ export function InventoryTableToolbar({
             .replace(/\b\w/g, (l: string) => l.toUpperCase());
     };
 
-    const handleAddSheetClose = () => setIsAddSheetOpen(false);
+    // Function to close the add item sheet
+    const handleAddSheetClose = () => {
+        // Close the sheet
+        if (typeof setIsAddSheetOpen === "function") {
+            setIsAddSheetOpen(false);
+        } else {
+            console.error("setIsAddSheetOpen is not a function");
+        }
+    };
 
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3">
@@ -262,40 +266,17 @@ export function InventoryTableToolbar({
                 </div>
             </div>
 
-            {/* Group 2 (Right): View, Export, Add */}
+            {/* Group 2 (Right): Settings, Add Item, Export */}
             <div className="flex items-center gap-2">
-                {/* View Dropdown */}
+                {/* View Options Dropdown */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-9 transition-colors duration-150"
-                        >
-                            <Settings2 className="mr-2 h-4 w-4" />
-                            View
+                        <Button variant="outline" size="sm" className="h-9">
+                            <Settings2 className="mr-2 h-4 w-4" /> View
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel>Density</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup
-                            value={density}
-                            onValueChange={
-                                handleDensityChange as (value: string) => void
-                            }
-                        >
-                            <DropdownMenuRadioItem value="compact">
-                                Compact
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="normal">
-                                Normal
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="comfortable">
-                                Comfortable
-                            </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-[180px]">
+                        <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {table
                             .getAllColumns()
@@ -318,6 +299,24 @@ export function InventoryTableToolbar({
                                     </DropdownMenuCheckboxItem>
                                 );
                             })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Table Density</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                            value={density}
+                            onValueChange={
+                                handleDensityChange as (value: string) => void
+                            }
+                        >
+                            <DropdownMenuRadioItem value="compact">
+                                Compact
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="normal">
+                                Normal
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="comfortable">
+                                Comfortable
+                            </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -325,39 +324,29 @@ export function InventoryTableToolbar({
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 ml-auto sm:ml-0 transition-colors duration-150"
+                    className="h-9"
                     onClick={onExportCsv}
-                    disabled={!table.getFilteredRowModel().rows.length}
                 >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
+                    <Download className="mr-2 h-4 w-4" /> Export
                 </Button>
 
-                {/* Add Item Button / Sheet */}
+                {/* Restored Add Item Button & Sheet */}
                 <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
                     <SheetTrigger asChild>
-                        <Button
-                            size="sm"
-                            className="h-9 transition-colors duration-150"
-                        >
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Add Item
+                        <Button size="sm" className="h-9">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                         </Button>
                     </SheetTrigger>
                     <SheetContent className="sm:max-w-xl">
                         <SheetHeader>
                             <SheetTitle>Add New Inventory Item</SheetTitle>
                             <SheetDescription>
-                                Enter the details for the new inventory item.
+                                Fill in the details of the new item.
                             </SheetDescription>
                         </SheetHeader>
-                        <Separator className="my-4" />
-                        <div className="px-6 pb-6">
-                            <AddItemForm
-                                onSuccess={handleAddSheetClose}
-                                onClose={handleAddSheetClose}
-                            />
-                        </div>
+                        <AddItemForm
+                            onSuccess={handleAddSheetClose} // Close sheet on success
+                        />
                     </SheetContent>
                 </Sheet>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ const MetricDisplayCard: React.FC<MetricDisplayCardProps> = ({
 }) => (
     <div
         className={cn(
-            "border rounded-lg p-4 flex flex-col justify-between bg-muted/30 hover:bg-muted/50 transition-colors h-full min-h-[110px]",
+            "border rounded-lg p-4 flex flex-col justify-between bg-muted/30 hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 h-full min-h-[110px] shadow-sm hover:shadow",
             className
         )}
     >
@@ -66,7 +66,7 @@ const MetricDisplayCard: React.FC<MetricDisplayCardProps> = ({
             <div className="flex justify-between items-start gap-2 mb-1">
                 <p
                     className={cn(
-                        "text-sm font-medium text-muted-foreground",
+                        "text-sm font-semibold text-muted-foreground",
                         titleClassName
                     )}
                 >
@@ -74,7 +74,12 @@ const MetricDisplayCard: React.FC<MetricDisplayCardProps> = ({
                 </p>
                 {icon}
             </div>
-            <p className={cn("text-xl font-semibold truncate", valueClassName)}>
+            <p
+                className={cn(
+                    "text-xl font-bold truncate tracking-tight",
+                    valueClassName
+                )}
+            >
                 {value}
             </p>
             {description && (
@@ -116,7 +121,16 @@ export function PrimaryMetrics({
     const [isAddStockDialogOpen, setIsAddStockDialogOpen] = useState(false);
     const [isReduceStockDialogOpen, setIsReduceStockDialogOpen] =
         useState(false);
+    const isMounted = useRef(true);
     const queryClient = useQueryClient();
+
+    // Set up effect to track component mount status
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
 
     const mutation = useMutation({
         mutationFn: ({
@@ -136,7 +150,9 @@ export function PrimaryMetrics({
             queryClient.invalidateQueries({
                 queryKey: ["stockTransactions", itemId],
             });
-            setIsReorderPopoverOpen(false);
+            if (isMounted.current) {
+                setIsReorderPopoverOpen(false);
+            }
         },
         onError: (error) => {
             toast.error(
@@ -150,8 +166,10 @@ export function PrimaryMetrics({
     };
 
     const handleStockAdjustmentSuccess = () => {
-        setIsAddStockDialogOpen(false);
-        setIsReduceStockDialogOpen(false);
+        if (isMounted.current) {
+            setIsAddStockDialogOpen(false);
+            setIsReduceStockDialogOpen(false);
+        }
         queryClient.invalidateQueries({
             queryKey: ["inventoryItem", itemId],
         });
@@ -239,6 +257,9 @@ export function PrimaryMetrics({
 
     const estimatedStockValue = stock_quantity * avgCost;
 
+    // Calculate profit per unit (selling price - average purchase cost)
+    const profitPerUnit = sellPrice - avgCost;
+
     const profitMargin =
         sellPrice > 0 ? ((sellPrice - avgCost) / sellPrice) * 100 : 0;
     const markup =
@@ -274,11 +295,11 @@ export function PrimaryMetrics({
         return (
             <span
                 className={cn(
-                    "flex items-center gap-1 text-xs font-medium",
+                    "flex items-center gap-1 text-xs font-medium animate-in fade-in-50 duration-500",
                     color
                 )}
             >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5 animate-in slide-in-from-left-2 duration-300" />
                 {`${prefix}${isPositive ? "+" : ""}${value.toFixed(
                     1
                 )}${suffix}`}
@@ -296,11 +317,11 @@ export function PrimaryMetrics({
         return (
             <span
                 className={cn(
-                    "flex items-center gap-1 text-xs font-medium",
+                    "flex items-center gap-1 text-xs font-medium animate-in fade-in-50 duration-500",
                     color
                 )}
             >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5 animate-in slide-in-from-left-2 duration-300" />
                 {`${prefix}${isPositive ? "+" : ""}${formatCurrency(value)}`}
             </span>
         );
@@ -315,17 +336,22 @@ export function PrimaryMetrics({
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                    <div className="lg:col-span-1 bg-muted/30 border rounded-lg overflow-hidden flex flex-col p-4">
+                    <div className="lg:col-span-1 bg-muted/40 border-l-4 border border-l-primary/20 rounded-lg overflow-hidden flex flex-col p-4 shadow-sm">
                         <div className="flex flex-col items-center text-center mb-10 mt-4">
                             <div
                                 className={cn(
-                                    "w-16 h-16 mb-2 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg flex-shrink-0",
+                                    "w-16 h-16 mb-2 rounded-full flex items-center justify-center text-primary-foreground font-bold text-lg flex-shrink-0 shadow-md transition-all duration-300 hover:scale-105",
                                     stockStatus.color
                                 )}
                             >
                                 {stock_quantity}
                             </div>
-                            <p className="text-sm font-semibold mb-0.5">
+                            <p
+                                className={cn(
+                                    "text-sm font-semibold mb-0.5",
+                                    stockStatus.iconColor
+                                )}
+                            >
                                 {stockStatus.text}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -349,13 +375,13 @@ export function PrimaryMetrics({
                                                     <Progress
                                                         value={progressBarValue}
                                                         className={cn(
-                                                            "h-2 w-full",
+                                                            "h-2 w-full transition-all duration-700 ease-in-out",
                                                             progressBarColor
                                                         )}
                                                     />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>
+                                                    <p className="font-medium">
                                                         {stock_quantity} /{" "}
                                                         {reorder_point} {unit}
                                                         (i)
@@ -366,10 +392,25 @@ export function PrimaryMetrics({
                                                             reaprovizionare)
                                                         </p>
                                                     )}
+                                                    {isLowStock && (
+                                                        <p className="text-amber-500">
+                                                            (Sub limita de
+                                                            reaprovizionare)
+                                                        </p>
+                                                    )}
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
-                                        <p className="text-xs text-muted-foreground mt-1.5 text-center">
+                                        <p
+                                            className={cn(
+                                                "text-xs mt-1.5 text-center",
+                                                isLowStock
+                                                    ? "text-amber-500"
+                                                    : isOverStocked
+                                                    ? "text-blue-500"
+                                                    : "text-muted-foreground"
+                                            )}
+                                        >
                                             Punct de reaprovizionare:{" "}
                                             {reorder_point} {unit}(i)
                                         </p>
@@ -421,9 +462,11 @@ export function PrimaryMetrics({
                                         unit={unit}
                                         currentStock={stock_quantity}
                                         onSuccess={handleStockAdjustmentSuccess}
-                                        onClose={() =>
-                                            setIsAddStockDialogOpen(false)
-                                        }
+                                        onClose={() => {
+                                            if (isMounted.current) {
+                                                setIsAddStockDialogOpen(false);
+                                            }
+                                        }}
                                     />
                                 </DialogContent>
                             </Dialog>
@@ -472,9 +515,13 @@ export function PrimaryMetrics({
                                             average_purchase_price
                                         }
                                         onSuccess={handleStockAdjustmentSuccess}
-                                        onClose={() =>
-                                            setIsReduceStockDialogOpen(false)
-                                        }
+                                        onClose={() => {
+                                            if (isMounted.current) {
+                                                setIsReduceStockDialogOpen(
+                                                    false
+                                                );
+                                            }
+                                        }}
                                     />
                                 </DialogContent>
                             </Dialog>
@@ -555,9 +602,11 @@ export function PrimaryMetrics({
                                         initialValue={reorder_point}
                                         unit={unit}
                                         onSave={handleSaveReorderPoint}
-                                        onCancel={() =>
-                                            setIsReorderPopoverOpen(false)
-                                        }
+                                        onCancel={() => {
+                                            if (isMounted.current) {
+                                                setIsReorderPopoverOpen(false);
+                                            }
+                                        }}
                                         isLoading={mutation.isPending}
                                     />
                                 )}
@@ -659,6 +708,43 @@ export function PrimaryMetrics({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <MetricDisplayCard
+                                        title="Profit per unitate"
+                                        value={
+                                            <span
+                                                className={cn(
+                                                    profitPerUnit > 0
+                                                        ? "text-green-500"
+                                                        : profitPerUnit < 0
+                                                        ? "text-red-500"
+                                                        : ""
+                                                )}
+                                            >
+                                                {formatCurrency(profitPerUnit)}
+                                            </span>
+                                        }
+                                        description={`Profit monetar per ${unit}`}
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>
+                                        Profitul monetar pentru fiecare unitate
+                                        vândută.
+                                    </p>
+                                    <p className="text-xs mt-1 border-t pt-1">
+                                        <span className="font-medium">
+                                            Formula:
+                                        </span>{" "}
+                                        Preț de vânzare - Cost mediu de
+                                        achiziție
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <MetricDisplayCard
                                         title="Marja de profit"
                                         value={
                                             <span
@@ -673,13 +759,20 @@ export function PrimaryMetrics({
                                                 {formatPercentage(profitMargin)}
                                             </span>
                                         }
-                                        description="(Preț de vânzare - Cost mediu) / Preț de vânzare"
+                                        description="Procentajul din prețul de vânzare care reprezintă profit"
                                     />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>
                                         Procentajul din prețul de vânzare care
                                         reprezintă profit.
+                                    </p>
+                                    <p className="text-xs mt-1 border-t pt-1">
+                                        <span className="font-medium">
+                                            Formula:
+                                        </span>{" "}
+                                        (Preț de vânzare - Cost mediu) / Preț de
+                                        vânzare
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
@@ -705,13 +798,20 @@ export function PrimaryMetrics({
                                                     : formatPercentage(markup)}
                                             </span>
                                         }
-                                        description="(Preț de vânzare - Cost mediu) / Cost mediu"
+                                        description="Creșterea procentuală de la cost la prețul de vânzare"
                                     />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p>
                                         Creșterea procentuală de la cost la
                                         prețul de vânzare.
+                                    </p>
+                                    <p className="text-xs mt-1 border-t pt-1">
+                                        <span className="font-medium">
+                                            Formula:
+                                        </span>{" "}
+                                        (Preț de vânzare - Cost mediu) / Cost
+                                        mediu
                                     </p>
                                 </TooltipContent>
                             </Tooltip>

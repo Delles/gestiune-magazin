@@ -77,7 +77,7 @@ export default async function InventoryItemPage(props: PageProps) {
         transactionHistory ?? [];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in-50 duration-500 bg-gradient-to-b from-background to-muted/20 rounded-lg p-1">
             <Suspense
                 fallback={
                     <>

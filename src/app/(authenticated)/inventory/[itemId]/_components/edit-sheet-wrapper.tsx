@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import EditItemForm from "../../_components/forms/edit-item-form";
 
 interface EditSheetWrapperProps {
@@ -9,13 +9,26 @@ interface EditSheetWrapperProps {
 
 export default function EditSheetWrapper({ itemId }: EditSheetWrapperProps) {
     const [isOpen, setIsOpen] = useState(true);
+    const isMounted = useRef(true);
+
+    // Set up effect to track component mount status
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
 
     const handleSuccess = () => {
-        setIsOpen(false);
+        if (isMounted.current) {
+            setIsOpen(false);
+        }
     };
 
     const handleClose = () => {
-        setIsOpen(false);
+        if (isMounted.current) {
+            setIsOpen(false);
+        }
     };
 
     if (!isOpen) {

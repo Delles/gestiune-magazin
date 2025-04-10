@@ -66,14 +66,19 @@ export default function ItemDetailHeader({
     return (
         <div
             className={cn(
-                "sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-4 pb-4 border-b"
+                "sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 pt-4 pb-4 border-b shadow-sm transition-all duration-200"
             )}
         >
             {/* Back Navigation */}
             <div className="flex items-center space-x-2 mb-6">
-                <Button variant="outline" size="sm" asChild>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 group"
+                >
                     <Link href="/inventory">
-                        <ArrowLeftIcon className="mr-1 h-4 w-4" />
+                        <ArrowLeftIcon className="mr-1 h-4 w-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
                         Back to Inventory
                     </Link>
                 </Button>
@@ -85,15 +90,15 @@ export default function ItemDetailHeader({
                 <div className="flex-1 space-y-2 min-w-0">
                     {/* Title Row with Status Badges */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        <div className="bg-muted p-2 rounded-lg flex-shrink-0">
+                        <div className="bg-muted p-2 rounded-lg flex-shrink-0 shadow-sm hover:shadow transition-all duration-300 hover:bg-muted/80 group">
                             <CategoryIcon
-                                className="h-6 w-6 text-muted-foreground"
+                                className="h-6 w-6 text-muted-foreground group-hover:text-primary/80 transition-colors duration-300"
                                 aria-label={`${
                                     item.categories?.name ?? "Item"
                                 } category icon`}
                             />
                         </div>
-                        <h1 className="text-2xl font-bold tracking-tight">
+                        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                             <span className="break-words">
                                 {item.item_name ?? "Item Name"}
                             </span>
@@ -132,8 +137,11 @@ export default function ItemDetailHeader({
                             <TooltipTrigger asChild>
                                 <Sheet>
                                     <SheetTrigger asChild>
-                                        <Button variant="outline">
-                                            <PencilIcon className="mr-2 h-4 w-4" />{" "}
+                                        <Button
+                                            variant="outline"
+                                            className="transition-all duration-200 hover:bg-primary/10 hover:border-primary/30 group"
+                                        >
+                                            <PencilIcon className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform duration-300" />{" "}
                                             Edit
                                         </Button>
                                     </SheetTrigger>

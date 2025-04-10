@@ -2,6 +2,7 @@
 "use client"; // Add use client directive
 
 import * as React from "react";
+import { useRef, useEffect } from "react";
 import { Row, flexRender } from "@tanstack/react-table";
 import { TableRow, TableCell } from "@/components/ui/table";
 import {
@@ -95,13 +96,26 @@ const DisplayRow = React.memo(
     }: DisplayRowProps) => {
         const item = row.original;
         const isPopoverOpen = reorderPointItemId === item.id;
+        const isMounted = useRef(true);
+
+        // Set up effect to track component mount status
+        useEffect(() => {
+            isMounted.current = true;
+            return () => {
+                isMounted.current = false;
+            };
+        }, []);
 
         const handleOpenChange = (open: boolean) => {
-            setReorderPointItemId(open ? item.id : null);
+            if (isMounted.current) {
+                setReorderPointItemId(open ? item.id : null);
+            }
         };
 
         const handleCancel = () => {
-            setReorderPointItemId(null);
+            if (isMounted.current) {
+                setReorderPointItemId(null);
+            }
         };
 
         // START: Determine stock status for highlighting
