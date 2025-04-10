@@ -117,19 +117,20 @@ export async function POST(
             p_total_price: totalPrice ?? undefined, // Use undefined instead of null
         };
 
-        // 6. Call the single RPC function
-        console.log(`Calling adjust_stock RPC with params:`, rpcParams); // Debug log
-        const { data: rpcResult, error: rpcError } = await supabase
-            .rpc("adjust_stock", rpcParams)
-            .select()
-            .single(); // Expecting a single updated item row back
+        // 6. Call the modified RPC function (now returns only new quantity)
+        console.log(`Calling adjust_stock RPC with params:`, rpcParams);
+        const { data: newQuantityResult, error: rpcError } = await supabase.rpc(
+            "adjust_stock",
+            rpcParams
+        );
+        // No .select() or .single() needed as it returns a simple value
 
         if (rpcError) {
             console.error(
                 `Error calling adjust_stock RPC for item ${itemId}:`,
                 rpcError
             );
-            // Check for specific database exceptions (like insufficient stock)
+            // Handle specific database exceptions (like insufficient stock, not found)
             if (rpcError.message.includes("Insufficient stock")) {
                 return createErrorResponse(
                     "Insufficient stock",
@@ -146,45 +147,64 @@ export async function POST(
             }
             // Generic error for others
             return createErrorResponse(
-                "Failed to adjust stock",
+                "Failed to adjust stock during RPC call",
                 500,
                 rpcError.message // Provide DB error message for debugging
             );
         }
 
-        if (!rpcResult) {
+        // Check if the RPC returned a valid number (the new quantity)
+        if (typeof newQuantityResult !== "number") {
             console.error(
-                `adjust_stock RPC for item ${itemId} returned no data.`
+                `adjust_stock RPC for item ${itemId} returned unexpected data:`,
+                newQuantityResult
             );
             return createErrorResponse(
-                "Failed to retrieve item data after adjustment",
+                "Failed to confirm stock adjustment quantity",
                 500
             );
         }
 
-        // 7. Process the successful result (optional: fetch category name if needed)
-        const { data: categoryData, error: categoryError } = await supabase
-            .from("categories")
-            .select("name")
-            .eq("id", rpcResult.category_id)
-            .maybeSingle();
+        // 7. RPC successful, now fetch the full updated item details separately
+        console.log(
+            `RPC successful for item ${itemId}, new quantity: ${newQuantityResult}. Fetching full item details...`
+        );
+        const { data: finalItemData, error: fetchError } = await supabase
+            .from("InventoryItems")
+            .select(
+                `
+                *,
+                categories ( name )
+            `
+            )
+            .eq("id", itemId)
+            .single();
 
-        if (categoryError) {
-            console.warn(
-                `Could not fetch category name for item ${itemId} after adjustment: ${categoryError.message}`
+        if (fetchError || !finalItemData) {
+            console.error(
+                `Failed to fetch item ${itemId} after successful stock adjustment:`,
+                fetchError
+            );
+            // Even if fetching fails, the adjustment likely succeeded. Return success but maybe indicate fetch failure.
+            return createErrorResponse(
+                `Stock adjusted (new quantity: ${newQuantityResult}), but failed to fetch updated item details.`,
+                500,
+                fetchError?.message
             );
         }
 
+        // 8. Process the fetched item data
         const transformedItem = {
-            ...rpcResult,
-            category_name: categoryData?.name || "Uncategorized",
-            // categories: undefined, // Remove if categories relation was included in RPC return type accidentally
+            ...finalItemData,
+            category_name: finalItemData.categories?.name || "Uncategorized",
+            categories: undefined, // Remove the nested categories object
         };
 
-        // 8. Return success response
+        // 9. Return success response with fetched data
+        console.log(`Successfully fetched updated item details for ${itemId}.`);
         return NextResponse.json({
             message: "Stock adjusted successfully",
-            newQuantity: transformedItem.stock_quantity, // Get the actual new quantity from DB
+            newQuantity: transformedItem.stock_quantity, // Use quantity from the fetched data
             item: transformedItem, // Return the full updated item details
         });
     } catch (error: unknown) {

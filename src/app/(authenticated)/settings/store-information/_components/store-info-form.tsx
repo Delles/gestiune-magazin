@@ -19,98 +19,37 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
+// Removed direct client import: import { createClient } from "@/lib/supabase/client";
 import {
     storeInfoSchema,
     type StoreInfoFormValues,
 } from "@/lib/validation/settings-schemas";
 import type { Database } from "@/types/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
+// Import API helper functions
+import {
+    getStoreSettings,
+    saveStoreSettings,
+} from "@/app/(authenticated)/settings/_data/api";
 
 type StoreSettings = Database["public"]["Tables"]["StoreSettings"]["Row"];
 
-// --- Data Fetching ---
-// Fetch function now returns StoreSettings OR null if no row exists
-async function fetchStoreSettings(
-    supabase: ReturnType<typeof createClient>
-): Promise<StoreSettings | null> {
-    // Return null if not found
-    const { data, error } = await supabase
-        .from("StoreSettings")
-        .select("*")
-        .limit(1)
-        .maybeSingle(); // Returns data or null
-
-    if (error) {
-        console.error("Error fetching store settings:", error);
-        throw new Error("Could not load store settings.");
-    }
-    return data; // Directly return data or null
-}
-
-// --- Data Mutations (Separate Insert/Update) ---
-async function insertStoreSettings(
-    supabase: ReturnType<typeof createClient>,
-    values: StoreInfoFormValues
-) {
-    const settingsDataToInsert = {
-        store_name: values.storeName,
-        store_address: values.storeAddress || null,
-        store_phone: values.storePhone || null,
-        store_email: values.storeEmail || null,
-        // No ID provided here!
-    };
-    const { error } = await supabase
-        .from("StoreSettings")
-        .insert(settingsDataToInsert)
-        .select()
-        .single();
-
-    if (error) {
-        console.error("Error inserting store settings:", error);
-        throw new Error("Failed to create store settings.");
-    }
-}
-
-async function updateStoreSettings(
-    supabase: ReturnType<typeof createClient>,
-    values: StoreInfoFormValues,
-    id: number | bigint // Existing ID is required
-) {
-    const settingsDataToUpdate = {
-        store_name: values.storeName,
-        store_address: values.storeAddress || null,
-        store_phone: values.storePhone || null,
-        store_email: values.storeEmail || null,
-        // No ID provided here!
-    };
-
-    const { error } = await supabase
-        .from("StoreSettings")
-        .update(settingsDataToUpdate)
-        .eq("id", Number(id)) // Use the existing ID to target the row
-        .select()
-        .single();
-
-    if (error) {
-        console.error("Error updating store settings:", error);
-        throw new Error("Failed to save store settings.");
-    }
-}
+// --- Removed local data fetching/mutation functions ---
 
 export function StoreInfoForm() {
     const queryClient = useQueryClient();
-    const supabase = createClient();
+    // Removed: const supabase = createClient();
 
-    // Query now expects StoreSettings or null
+    // Query uses the API helper, expects StoreSettings or null
     const {
-        data: storeSettings, // This can be StoreSettings | null
+        data: storeSettings,
         isLoading: isLoadingSettings,
         error: settingsError,
-    } = useQuery<StoreSettings | null>({
+    } = useQuery<StoreSettings | null, Error>({
+        // Explicitly type Error
         queryKey: ["storeSettings"],
-        queryFn: () => fetchStoreSettings(supabase),
-        staleTime: 5 * 60 * 1000,
+        queryFn: getStoreSettings,
+        staleTime: 5 * 60 * 1000, // Keep existing cache settings
         gcTime: 10 * 60 * 1000,
     });
 
@@ -124,10 +63,7 @@ export function StoreInfoForm() {
         },
     });
 
-    // Update form when data loads or changes
     React.useEffect(() => {
-        // Only reset if storeSettings is not null (i.e., data exists)
-        // If null, the defaults are fine (empty form for insertion)
         if (storeSettings) {
             form.reset({
                 storeName: storeSettings.store_name || "",
@@ -136,7 +72,6 @@ export function StoreInfoForm() {
                 storeEmail: storeSettings.store_email || "",
             });
         } else {
-            // Explicitly reset to defaults if data is null (ensures clean state)
             form.reset({
                 storeName: "",
                 storeAddress: "",
@@ -146,24 +81,13 @@ export function StoreInfoForm() {
         }
     }, [storeSettings, form]);
 
-    const mutation = useMutation({
-        mutationFn: async (values: StoreInfoFormValues) => {
-            // Decide whether to insert or update based on fetched data
-            if (storeSettings?.id) {
-                // Existing row found, perform update
-                await updateStoreSettings(supabase, values, storeSettings.id);
-            } else {
-                // No existing row, perform insert
-                await insertStoreSettings(supabase, values);
-            }
-        },
-        onSuccess: () => {
-            // values are the form values submitted
-            toast.success(
-                `Store information ${
-                    storeSettings?.id ? "updated" : "created"
-                } successfully!`
-            );
+    // Mutation now uses the single save helper
+    const mutation = useMutation<StoreSettings, Error, StoreInfoFormValues>({
+        mutationFn: saveStoreSettings, // Use the API helper which handles upsert
+        onSuccess: (data) => {
+            toast.success("Store information saved successfully!");
+            // Update query data directly if needed, or just invalidate
+            // queryClient.setQueryData(["storeSettings"], data);
             queryClient.invalidateQueries({ queryKey: ["storeSettings"] });
         },
         onError: (error) => {
@@ -252,9 +176,9 @@ export function StoreInfoForm() {
                             <FormLabel>Store Phone</FormLabel>
                             <FormControl>
                                 <Input
-                                    placeholder="(123) 456-7890"
+                                    placeholder="+1 (555) 123-4567"
                                     {...field}
-                                    value={field.value ?? ""}
+                                    value={field.value ?? ""} // Handle null value
                                 />
                             </FormControl>
                             <FormMessage />
@@ -272,18 +196,18 @@ export function StoreInfoForm() {
                                     type="email"
                                     placeholder="contact@yourstore.com"
                                     {...field}
-                                    value={field.value ?? ""}
+                                    value={field.value ?? ""} // Handle null value
                                 />
                             </FormControl>
+                            <FormDescription>
+                                This email can be used for customer inquiries.
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                <Button
-                    type="submit"
-                    disabled={mutation.isPending} // Disable only during mutation
-                >
-                    {mutation.isPending ? "Saving..." : "Save Changes"}
+                <Button type="submit" disabled={mutation.isPending}>
+                    {mutation.isPending ? "Saving..." : "Save Information"}
                 </Button>
             </form>
         </Form>

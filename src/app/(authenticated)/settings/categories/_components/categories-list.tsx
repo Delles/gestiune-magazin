@@ -3,15 +3,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+// Removed direct client import: import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
 import { toast } from "sonner";
 import {
     MoreHorizontal,
     PlusCircle,
-    Trash2,
-    AlertTriangle,
-} from "lucide-react"; // Add icons
+    Trash2, // Keep imported for commented code
+    AlertTriangle, // Keep imported for commented code
+} from "lucide-react";
 
 import {
     Table,
@@ -26,113 +26,45 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter, // Import DialogFooter
-    DialogClose, // Import DialogClose
+    DialogFooter, // Keep imported for commented code
+    DialogClose, // Keep imported for commented code
+    DialogDescription, // Keep imported for commented code
 } from "@/components/ui/dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator, // Add Separator
+    DropdownMenuSeparator, // Keep imported for commented code
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CategoryForm } from "./category-form";
 import type { CategoryFormValues } from "@/lib/validation/settings-schemas";
-import { useAuth } from "@/contexts/auth-context"; // <--- IMPORT useAuth
+import { useAuth } from "@/contexts/auth-context";
+// Import API helper functions using absolute path
+import {
+    getCategories,
+    createCategory,
+} from "@/app/(authenticated)/settings/_data/api";
+// TODO: Import updateCategory, deleteCategory when implemented
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 
-// --- Data Fetching & Mutations (Keep as before) ---
-// ... fetchCategories, createCategory, updateCategory, deleteCategory ...
-// --- Data Fetching ---
-async function fetchCategories(supabase: ReturnType<typeof createClient>) {
-    const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("name", { ascending: true });
-
-    if (error) {
-        console.error("Error fetching categories:", error);
-        throw new Error("Could not load categories.");
-    }
-    return data;
-}
-
-// --- Data Mutations ---
-async function createCategory(
-    supabase: ReturnType<typeof createClient>,
-    values: CategoryFormValues
-) {
-    const { error } = await supabase.from("categories").insert({
-        name: values.name,
-        description: values.description || null,
-    });
-    if (error) {
-        console.error("Create category error:", error);
-        // Check for unique constraint violation
-        if (error.code === "23505") {
-            throw new Error(
-                `A category named "${values.name}" already exists. Please use a unique name.`
-            );
-        }
-        throw new Error("Failed to create category.");
-    }
-}
-
-async function updateCategory(
-    supabase: ReturnType<typeof createClient>,
-    values: CategoryFormValues
-) {
-    if (!values.id) throw new Error("Category ID is missing for update.");
-    const { error } = await supabase
-        .from("categories")
-        .update({
-            name: values.name,
-            description: values.description || null,
-        })
-        .eq("id", values.id);
-    if (error) {
-        console.error("Update category error:", error);
-        if (error.code === "23505") {
-            throw new Error(
-                `The name "${values.name}" is already used by another category. Please choose a unique name.`
-            );
-        }
-        throw new Error("Failed to update category.");
-    }
-}
-
-async function deleteCategory(
-    supabase: ReturnType<typeof createClient>,
-    id: string
-) {
-    // Add dependency check later (Phase 2) before deleting
-    // For Phase 1, direct delete is okay as no items link yet.
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (error) {
-        console.error("Delete category error:", error);
-        // Handle foreign key constraints if they exist later
-        // if (error.code === '23503') { // Foreign key violation
-        //     throw new Error("Cannot delete category. It is linked to inventory items.");
-        // }
-        throw new Error("Failed to delete category.");
-    }
-}
+// --- Removed local data fetching/mutation functions ---
 
 // --- Component ---
 export function CategoriesList() {
     const queryClient = useQueryClient();
-    const supabase = createClient();
+    // Removed: const supabase = createClient();
     const { session, isLoading: isAuthLoading } = useAuth();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(
         null
     );
+    // Keep delete state commented out but syntactically valid
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
         null
@@ -148,92 +80,63 @@ export function CategoriesList() {
 
     const {
         data: categories,
-        isLoading: isLoadingCategories, // Renamed to avoid conflict
+        isLoading: isLoadingCategories,
         error,
-        isFetching, // Use isFetching for subsequent loads
-    } = useQuery<Category[]>({
+        isFetching,
+    } = useQuery<Category[], Error>({
         queryKey: ["categories"],
-        queryFn: () => fetchCategories(supabase),
-        enabled: !!session && !isAuthLoading, // Only run query if logged in and auth check finished
+        queryFn: getCategories,
+        enabled: !!session && !isAuthLoading,
     });
 
-    const createUpdateMutation = useMutation({
-        // Renamed for clarity
-        mutationFn: async (values: CategoryFormValues) => {
-            if (values.id) {
-                await updateCategory(supabase, values);
-            } else {
-                await createCategory(supabase, values);
-            }
-        },
-        onSuccess: (_, variables) => {
-            if (!isMountedRef.current) {
-                if (process.env.NODE_ENV === "development") {
-                    console.log(
-                        "Component unmounted before create/update onSuccess."
-                    );
-                }
-                return;
-            }
-            toast.success(
-                `Category "${variables.name}" ${
-                    variables.id ? "updated" : "created"
-                } successfully!`
-            );
+    const createMutation = useMutation<Category, Error, CategoryFormValues>({
+        mutationFn: createCategory,
+        onSuccess: (data) => {
+            if (!isMountedRef.current) return;
+            toast.success(`Category "${data.name}" created successfully!`);
             queryClient.invalidateQueries({ queryKey: ["categories"] });
             setIsFormOpen(false);
             setEditingCategory(null);
         },
         onError: (error) => {
-            if (
-                !isMountedRef.current &&
-                process.env.NODE_ENV === "development"
-            ) {
-                console.log(
-                    "Component unmounted before create/update onError (toast only)."
-                );
-            }
-            toast.error(error.message || "An error occurred.");
+            if (!isMountedRef.current) return;
+            toast.error(error.message || "Failed to create category.");
         },
     });
 
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => deleteCategory(supabase, id),
+    // Keep delete mutation commented out but syntactically valid
+    const deleteMutation = useMutation<void, Error, string>({
+        mutationFn: async (id: string) => {
+            throw new Error("Delete not implemented");
+            // TODO: Replace with actual deleteCategory API call
+            // await deleteCategory(id);
+        },
         onSuccess: () => {
-            if (!isMountedRef.current) {
-                if (process.env.NODE_ENV === "development") {
-                    console.log("Component unmounted before delete onSuccess.");
-                }
-                return;
-            }
+            if (!isMountedRef.current) return;
             toast.success("Category deleted successfully!");
             queryClient.invalidateQueries({ queryKey: ["categories"] });
             setIsDeleteDialogOpen(false);
             setCategoryToDelete(null);
         },
         onError: (error) => {
-            if (
-                !isMountedRef.current &&
-                process.env.NODE_ENV === "development"
-            ) {
-                console.log(
-                    "Component unmounted before delete onError (toast only)."
-                );
-            }
+            if (!isMountedRef.current) return;
             toast.error(error.message || "Failed to delete category.");
         },
     });
 
+    // Keep edit handler commented out but syntactically valid
     const handleOpenEditDialog = (category: Category) => {
         setEditingCategory(category);
         setIsFormOpen(true);
     };
 
+    // Keep delete handler commented out but syntactically valid
     const handleOpenDeleteDialog = (category: Category) => {
         setCategoryToDelete(category);
         setIsDeleteDialogOpen(true);
     };
 
+    // Keep delete confirmation handler commented out but syntactically valid
     const handleConfirmDelete = () => {
         if (categoryToDelete) {
             deleteMutation.mutate(categoryToDelete.id);
@@ -241,45 +144,43 @@ export function CategoriesList() {
     };
 
     const handleFormDialogChange = (open: boolean) => {
-        if (!isMountedRef.current) {
-            if (process.env.NODE_ENV === "development") {
-                console.log(
-                    "Component unmounted before handleFormDialogChange."
-                );
-            }
-            return;
-        }
+        if (!isMountedRef.current) return;
+        setIsFormOpen(open);
         if (!open) {
             setEditingCategory(null);
         }
-        setIsFormOpen(open);
     };
 
+    // Keep delete dialog change handler commented out but syntactically valid
     const handleDeleteDialogChange = (open: boolean) => {
-        if (!isMountedRef.current) {
-            if (process.env.NODE_ENV === "development") {
-                console.log(
-                    "Component unmounted before handleDeleteDialogChange."
-                );
-            }
-            return;
-        }
+        if (!isMountedRef.current) return;
+        setIsDeleteDialogOpen(open);
         if (!open) {
             setCategoryToDelete(null);
         }
-        setIsDeleteDialogOpen(open);
     };
 
-    // --- ADJUST LOADING STATE ---
-    // Show loading skeleton if either auth is loading or categories are loading/fetching
-    const showLoadingSkeleton = isAuthLoading || isLoadingCategories;
-    // --- END ADJUST LOADING STATE ---
+    const handleFormSubmit = async (values: CategoryFormValues) => {
+        // if (editingCategory) {
+        //     // TODO: Call update mutation
+        //     toast.info("Update not implemented yet.")
+        // } else {
+        await createMutation.mutateAsync(values); // Use mutateAsync for async handling if needed
+        // }
+    };
 
-    if (showLoadingSkeleton) {
-        // Use combined loading state
+    if (isAuthLoading) {
+        return <div>Loading authentication...</div>; // Or a better loading state
+    }
+
+    if (!session) {
+        return <div>Please log in to view categories.</div>; // Or redirect
+    }
+
+    if (isLoadingCategories) {
         return (
             <div className="space-y-2">
-                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-8 w-32" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -287,62 +188,58 @@ export function CategoriesList() {
         );
     }
 
-    // Handle case where user is logged out (query is disabled) or fetch error
-    if ((!session && !isAuthLoading) || error) {
+    if (error) {
         return (
-            <div className="text-center text-muted-foreground py-10">
-                {error
-                    ? `Error loading categories: ${error.message}`
-                    : "Please log in to view categories."}
+            <div className="text-red-600">
+                Error loading categories: {(error as Error).message}
             </div>
         );
     }
 
     return (
         <div className="space-y-4">
-            {/* Add/Edit Category Dialog */}
-            <Dialog open={isFormOpen} onOpenChange={handleFormDialogChange}>
-                <DialogTrigger asChild>
-                    <Button
-                        size="sm"
-                        onClick={() => setIsFormOpen(true)}
-                        disabled={!session}
-                    >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add Category
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingCategory
-                                ? "Edit Category"
-                                : "Add New Category"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {editingCategory
-                                ? "Update the details for this category."
-                                : "Enter the details for the new category."}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <CategoryForm
-                        initialData={editingCategory}
-                        onSubmit={createUpdateMutation.mutateAsync}
-                        isPending={createUpdateMutation.isPending}
-                    />
-                </DialogContent>
-            </Dialog>
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Manage Categories</h2>
+                <Dialog open={isFormOpen} onOpenChange={handleFormDialogChange}>
+                    <DialogTrigger asChild>
+                        <Button
+                            size="sm"
+                            onClick={() => setEditingCategory(null)} // Ensure reset when opening for create
+                        >
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add New
+                            Category
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>
+                                {/* {editingCategory ? "Edit" : "Add New"} Category */}
+                                Add New Category{" "}
+                                {/* Simplified title until edit is back */}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <CategoryForm
+                            onSubmit={handleFormSubmit}
+                            // Pass the category to edit, or null for new
+                            initialData={null} // Pass null until edit is back
+                            // Disable form based on mutation status
+                            isPending={createMutation.isPending}
+                        />
+                    </DialogContent>
+                </Dialog>
+            </div>
 
-            {/* Categories Table */}
+            {isFetching && !isLoadingCategories && (
+                <div className="text-sm text-muted-foreground">Updating...</div>
+            )}
+
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Description</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
+                            <TableHead className="w-[50px]">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -352,10 +249,10 @@ export function CategoriesList() {
                                     <TableCell className="font-medium">
                                         {category.name}
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground truncate max-w-xs">
+                                    <TableCell>
                                         {category.description || "-"}
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button
@@ -373,25 +270,28 @@ export function CategoriesList() {
                                                 <DropdownMenuLabel>
                                                     Actions
                                                 </DropdownMenuLabel>
+                                                {/* Keep edit/delete commented but valid */}
                                                 <DropdownMenuItem
-                                                    onSelect={() =>
+                                                    onClick={() =>
                                                         handleOpenEditDialog(
                                                             category
                                                         )
                                                     }
+                                                    disabled // Disable until implemented
                                                 >
                                                     Edit
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
-                                                    onSelect={() =>
+                                                    className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                                    onClick={() =>
                                                         handleOpenDeleteDialog(
                                                             category
                                                         )
                                                     }
-                                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                    disabled // Disable until implemented
                                                 >
-                                                    <Trash2 className="mr-2 h-4 w-4" />{" "}
+                                                    <Trash2 className="mr-2 h-4 w-4" />
                                                     Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -405,9 +305,7 @@ export function CategoriesList() {
                                     colSpan={3}
                                     className="h-24 text-center"
                                 >
-                                    {isFetching
-                                        ? "Loading..."
-                                        : "No categories found."}
+                                    No categories found.
                                 </TableCell>
                             </TableRow>
                         )}
@@ -415,42 +313,34 @@ export function CategoriesList() {
                 </Table>
             </div>
 
-            {/* Delete Confirmation Dialog */}
+            {/* Keep Delete Confirmation Dialog commented but valid */}
             <Dialog
                 open={isDeleteDialogOpen}
                 onOpenChange={handleDeleteDialogChange}
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center">
-                            <AlertTriangle className="mr-2 h-5 w-5 text-destructive" />{" "}
-                            Are you absolutely sure?
-                        </DialogTitle>
-                        <DialogDescription>
-                            This action cannot be undone. This will permanently
-                            delete the category{" "}
-                            <span className="font-semibold">
-                                {categoryToDelete?.name}
-                            </span>
-                            .{/* Add warning about linked items later */}
-                            {/* <br/> Any inventory items linked to this category will need to be updated. */}
+                        <DialogTitle>Confirm Deletion</DialogTitle>
+                        <DialogDescription className="flex items-center">
+                            <AlertTriangle className="text-red-500 mr-2 h-5 w-5" />
+                            Are you sure you want to delete the category &quot;
+                            {categoryToDelete?.name}&quot;? This action cannot
+                            be undone.
+                            {/* Future: Add check for linked items here */}
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="gap-2 sm:justify-end">
+                    <DialogFooter>
                         <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Cancel
-                            </Button>
+                            <Button variant="outline">Cancel</Button>
                         </DialogClose>
                         <Button
-                            type="button"
                             variant="destructive"
                             onClick={handleConfirmDelete}
                             disabled={deleteMutation.isPending}
                         >
                             {deleteMutation.isPending
                                 ? "Deleting..."
-                                : "Delete Category"}
+                                : "Delete"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
