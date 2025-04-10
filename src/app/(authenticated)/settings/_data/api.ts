@@ -1,13 +1,12 @@
 import type {
     StoreInfoFormValues,
-    CurrencyFormValues,
     CategoryFormValues,
 } from "@/lib/validation/settings-schemas";
 import type { Database } from "@/types/supabase";
 
 // Define types locally using Database
 type StoreSettings = Database["public"]["Tables"]["StoreSettings"]["Row"];
-type CurrencySettings = Database["public"]["Tables"]["CurrencySettings"]["Row"];
+// type CurrencySettings = Database["public"]["Tables"]["CurrencySettings"]["Row"]; // Removed
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 
 // --- Common Error Handling --- (Consider moving to a shared lib file)
@@ -88,10 +87,7 @@ export async function createCategory(
 // --- Store Settings --- (Assumes API route is /api/settings/store)
 export async function getStoreSettings(): Promise<StoreSettings | null> {
     const response = await fetch("/api/settings/store");
-    // API returns {} for not found, handleApiResponse might return null if content-length is 0
-    // or it might parse {} into an object. Need to adjust based on API behavior.
     const data = await handleApiResponse(response);
-    // Check if the returned data is essentially empty (like the {} from the API)
     if (data && Object.keys(data).length === 0) {
         return null;
     }
@@ -102,31 +98,11 @@ export async function saveStoreSettings(
     data: StoreInfoFormValues
 ): Promise<StoreSettings> {
     const response = await fetch("/api/settings/store", {
-        method: "POST", // API handles upsert via POST
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
     });
     return handleApiResponse(response);
 }
 
-// --- Currency Settings --- (Assumes API route is /api/settings/currency)
-export async function getCurrencySettings(): Promise<CurrencySettings | null> {
-    const response = await fetch("/api/settings/currency");
-    const data = await handleApiResponse(response);
-    // Similar handling as getStoreSettings for potentially empty object response
-    if (data && Object.keys(data).length === 0) {
-        return null;
-    }
-    return data;
-}
-
-export async function saveCurrencySettings(
-    data: CurrencyFormValues
-): Promise<CurrencySettings> {
-    const response = await fetch("/api/settings/currency", {
-        method: "POST", // API handles upsert via POST
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-    });
-    return handleApiResponse(response);
-}
+// --- Currency Settings Removed --- //

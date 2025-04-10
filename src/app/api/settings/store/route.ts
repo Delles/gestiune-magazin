@@ -3,6 +3,9 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
 import { storeInfoSchema } from "@/lib/validation/settings-schemas";
 
+// Define the fixed ID for the single store settings row
+const STORE_SETTINGS_ID = 1;
+
 // GET handler for fetching store settings
 export async function GET() {
     noStore();
@@ -83,14 +86,9 @@ export async function POST(request: Request) {
             );
         }
 
-        // Map Zod schema output to DB columns, excluding DB-managed fields like id, created_at, updated_at
-        const settingsDataToUpsert: {
-            store_name: string;
-            store_address: string | null;
-            store_phone: string | null;
-            store_email: string | null;
-            // user_id?: string; // Add user_id if your table requires it and it's not set by RLS/policy
-        } = {
+        // Map Zod schema output to DB columns, including the fixed ID
+        const settingsDataToUpsert = {
+            id: STORE_SETTINGS_ID, // Include the fixed ID
             store_name: validation.data.storeName,
             store_address: validation.data.storeAddress ?? null,
             store_phone: validation.data.storePhone ?? null,
@@ -98,13 +96,14 @@ export async function POST(request: Request) {
             // user_id: user.id // Include user_id if necessary for the upsert
         };
 
-        // Upsert the store settings.
+        // Upsert the store settings, targeting the conflict on 'id'.
         const { data, error } = await supabase
             .from("StoreSettings")
             .upsert(
-                settingsDataToUpsert, // Pass the correctly typed object
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                settingsDataToUpsert as any, // Use type assertion to bypass strict type check for upsert with fixed ID
                 {
-                    // onConflict: 'user_id', // Specify conflict target if needed (e.g., if user_id is unique)
+                    onConflict: "id", // Specify the primary key column for conflict resolution
                     // ignoreDuplicates: false, // Default is false, ensures update
                 }
             )

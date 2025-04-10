@@ -1,57 +1,80 @@
 // src/app/(authenticated)/settings/page.tsx
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
     Card,
+    CardContent,
+    CardDescription,
     CardHeader,
     CardTitle,
-    CardDescription,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Store, Library } from "lucide-react"; // Removed unused: Settings, CreditCard
 
 export default function SettingsPage() {
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-lg font-medium">Settings</h1>
-                <p className="text-sm text-muted-foreground">
-                    Manage your store settings, user profile, and application
-                    preferences.
-                </p>
+        <div className="flex-1 space-y-8 p-8 pt-6">
+            <div className="flex items-center justify-between space-y-2">
+                <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
             </div>
-            <Separator />
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Link href="/settings/store-information">
-                    <Card className="hover:border-primary transition-colors">
-                        <CardHeader>
-                            <CardTitle>Store Information</CardTitle>
-                            <CardDescription>
-                                Manage store name, address, contact, and logo.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                </Link>
-                <Link href="/settings/currency">
-                    <Card className="hover:border-primary transition-colors">
-                        <CardHeader>
-                            <CardTitle>Currency Settings</CardTitle>
-                            <CardDescription>
-                                Set the default currency for financial values.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                </Link>
-                <Link href="/settings/categories">
-                    <Card className="hover:border-primary transition-colors">
-                        <CardHeader>
-                            <CardTitle>Inventory Categories</CardTitle>
-                            <CardDescription>
-                                Manage product categories for inventory
-                                organization.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                </Link>
-                {/* Add links for Tax, Payment Methods, Profile, Report Options later */}
+
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {/* Store Information Card */}
+                <Card>
+                    <CardHeader>
+                        <Store className="mb-2 h-6 w-6" />
+                        <CardTitle>Store Information</CardTitle>
+                        <CardDescription>
+                            Update your store&apos;s name, address, and contact
+                            details.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <Link href="/settings/store-information">
+                                Manage Store
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Categories Card */}
+                <Card>
+                    <CardHeader>
+                        <Library className="mb-2 h-6 w-6" />
+                        <CardTitle>Categories</CardTitle>
+                        <CardDescription>
+                            Manage product categories for organization.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <Link href="/settings/categories">
+                                Manage Categories
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Currency Settings Card - Removed */}
+
+                {/* Add more settings cards here as needed */}
+                {/* Example: Payment Gateway Card */}
+                {/*
+                <Card>
+                    <CardHeader>
+                        <CreditCard className="mb-2 h-6 w-6" />
+                        <CardTitle>Payment Gateway</CardTitle>
+                        <CardDescription>
+                            Configure your payment processing options.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <Link href="/settings/payment">Configure Gateway</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+                */}
             </div>
         </div>
     );
