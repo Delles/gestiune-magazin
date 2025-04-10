@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
     stockAdjustmentSchema,
-    TransactionType,
+    StockAdjustmentTransactionType,
 } from "@/lib/validation/inventory-schemas";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/route-handler";
 import { unstable_noStore as noStore } from "next/cache";
@@ -34,7 +34,7 @@ export async function POST(
         const { itemId } = await params;
         const body = await request.json();
 
-        // Fix: Use StockAdjustmentFormValues for validation data type
+        // 1. Validate the incoming request body thoroughly
         const validationResult = stockAdjustmentSchema.safeParse(body);
 
         if (!validationResult.success) {
@@ -49,269 +49,144 @@ export async function POST(
             );
         }
 
-        // Use validated data
+        // 2. Get validated data
         const {
-            quantity = 0, // Default to 0 if undefined
-            transactionType,
+            quantity,
+            transactionType, // Type from form: 'purchase', 'sale', 'write-off', 'correction-add', 'correction-remove'
             reason,
             date,
-            purchasePrice, // Price for 'purchase'/'return'
-            sellingPrice, // Price for 'sale'/'damaged' etc.
-            totalPrice, // Calculated or entered
+            purchasePrice, // Price for 'purchase' OR cost for 'write-off'
+            sellingPrice, // Price for 'sale'
+            totalPrice, // Can be total cost or total sale value
             referenceNumber,
         } = validationResult.data;
 
-        // Ensure quantity is a number for calculations
-        const adjustmentQuantity = Number(quantity);
-        if (isNaN(adjustmentQuantity) || adjustmentQuantity <= 0) {
-            return createErrorResponse(
-                "Invalid quantity. Must be a positive number.",
-                400
-            );
-        }
-
+        // 3. Get authenticated user
         const supabase = await createRouteHandlerSupabaseClient();
         const {
             data: { session },
         } = await supabase.auth.getSession();
-        if (!session) {
+        if (!session?.user?.id) {
+            // Check for user ID specifically
             return createErrorResponse("Unauthorized", 401);
         }
-        const userId = session.user?.id;
+        const userId = session.user.id;
 
-        // --- Logic Branching ---
+        // 4. Determine the quantity_change (+/-) for the RPC function
+        let quantityChange: number;
+        const isIncrease = [
+            "purchase",
+            "correction-add",
+            // Add 'return' here if/when implemented in the form/schema
+        ].includes(transactionType);
+        const isDecrease = [
+            "sale",
+            "write-off",
+            "correction-remove",
+            // Add 'damaged', 'loss', 'expired' etc. if they become distinct types later
+        ].includes(transactionType);
 
-        // Case 1: Purchase or Return (Use RPC Function)
-        if (
-            transactionType === "purchase" ||
-            (transactionType as string) === "return"
-        ) {
-            // Ensure purchasePrice is valid
-            if (
-                purchasePrice === null ||
-                purchasePrice === undefined ||
-                purchasePrice < 0
-            ) {
-                return createErrorResponse(
-                    "Valid Purchase Price is required for 'purchase' or 'return' transactions.",
-                    400
-                );
-            }
-
-            const { error: rpcError } = await supabase.rpc(
-                "record_item_purchase",
-                {
-                    p_item_id: itemId,
-                    p_quantity_added: adjustmentQuantity, // Function expects positive quantity
-                    p_purchase_price: purchasePrice,
-                    p_user_id: userId,
-                    p_transaction_type: transactionType as TransactionType, // Cast to TransactionType
-                    p_reference_number: referenceNumber || "", // Convert null to empty string
-                    p_reason: reason || "", // Convert null to empty string
-                    p_transaction_date:
-                        date instanceof Date
-                            ? date.toISOString()
-                            : new Date().toISOString(), // Handle both Date and string
-                }
-            );
-
-            if (rpcError) {
-                console.error(
-                    `Error calling record_item_purchase for item ${itemId}:`,
-                    rpcError
-                );
-                return createErrorResponse(
-                    "Failed to record purchase transaction",
-                    500,
-                    rpcError.message
-                );
-            }
-
-            // Since RPC returns SETOF, rpcResult might be an array. Assuming single item update.
-            // We ideally want the updated item details back.
-            const { data: updatedItem, error: fetchError } = await supabase
-                .from("InventoryItems")
-                .select(`*, categories(id, name)`) // Fetch needed details
-                .eq("id", itemId)
-                .single();
-
-            if (fetchError || !updatedItem) {
-                console.warn(
-                    "Could not fetch item details after successful RPC call."
-                );
-                return NextResponse.json({
-                    message: `Stock adjusted via ${transactionType}, but failed to fetch final state.`,
-                });
-            }
-            const transformedItem = {
-                ...updatedItem,
-                category_name: updatedItem.categories?.name || "Uncategorized",
-                categories: undefined,
-            };
-
-            return NextResponse.json({
-                message: `Stock adjusted successfully via ${transactionType}`,
-                newQuantity: transformedItem.stock_quantity,
-                item: transformedItem, // Return updated item data
-            });
+        if (isIncrease) {
+            quantityChange = quantity; // Positive value
+        } else if (isDecrease) {
+            quantityChange = -quantity; // Negative value
         } else {
-            // Case 2: Other Transaction Types (Manual Update - Non-Purchase/Return)
-
-            // Start DB transaction (optional but safer if multiple steps needed)
-            // const { data: txnData, error: txnError } = await supabase.rpc('some_wrapper_for_transaction');
-            // If not using DB transaction, ensure error handling is robust
-
-            // Get current stock quantity
-            const { data: item, error: fetchError } = await supabase
-                .from("InventoryItems")
-                .select("stock_quantity") // Select only needed field
-                .eq("id", itemId)
-                .single();
-
-            if (fetchError || !item) {
-                if (fetchError?.code === "PGRST116")
-                    return createErrorResponse("Item not found", 404); // Handle specific 'not found' error
-                console.error(
-                    `Error fetching item ${itemId} for manual adjustment:`,
-                    fetchError
-                );
-                return createErrorResponse(
-                    "Failed to fetch item before adjustment",
-                    500
-                );
-            }
-
-            const currentStock = Number(item.stock_quantity);
-            let newQuantity: number;
-            let quantityChange: number;
-
-            // Determine quantity change based on transaction type category ('increase' or 'decrease')
-            const isIncrease = [
-                "inventory-correction-add",
-                "other-addition",
-            ].includes(transactionType);
-            const isDecrease = [
-                "sale",
-                "write-off",
-                "inventory-correction-remove",
-                "other-removal",
-            ].includes(transactionType);
-
-            if (isIncrease) {
-                newQuantity = currentStock + adjustmentQuantity;
-                quantityChange = adjustmentQuantity;
-            } else if (isDecrease) {
-                if (currentStock < adjustmentQuantity) {
-                    return createErrorResponse(
-                        "Not enough stock available for decrease",
-                        400
-                    );
-                }
-                newQuantity = currentStock - adjustmentQuantity;
-                quantityChange = -adjustmentQuantity;
-            } else {
-                // This check should now correctly handle write-off if isDecrease logic is right
-                return createErrorResponse(
-                    `Invalid transaction type for manual adjustment: ${transactionType}`,
-                    400
-                );
-            }
-
-            // Update stock quantity only
-            const { data: updateData, error: updateError } = await supabase
-                .from("InventoryItems")
-                .update({
-                    stock_quantity: newQuantity,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", itemId)
-                .select("stock_quantity") // Select the updated quantity
-                .single();
-
-            if (updateError) {
-                console.error(
-                    `Error updating stock quantity manually for item ${itemId}:`,
-                    updateError
-                );
-                return createErrorResponse(
-                    "Failed to update stock quantity",
-                    500
-                );
-            }
-
-            const finalQuantity = updateData?.stock_quantity; // Get the quantity confirmed by the DB
-
-            // Log the stock transaction
-            const { error: logError } = await supabase
-                .from("StockTransactions")
-                .insert({
-                    item_id: itemId,
-                    transaction_type: transactionType, // Use the validated type (e.g., 'write-off')
-                    quantity_change: quantityChange,
-                    reason: reason || null,
-                    transaction_date:
-                        date instanceof Date
-                            ? date.toISOString()
-                            : new Date().toISOString(),
-                    user_id: userId, // Use correct column name and variable
-                    // Include price/cost info based on transaction type
-                    purchase_price:
-                        transactionType === "write-off"
-                            ? purchasePrice // Use validated camelCase variable for value
-                            : null,
-                    selling_price:
-                        transactionType === "sale"
-                            ? sellingPrice // Use validated camelCase variable for value
-                            : null,
-                    total_price: totalPrice, // Use correct column name and variable
-                    reference_number: referenceNumber, // Use correct column name and variable
-                })
-                .select() // Select to potentially get the inserted row ID if needed
-                .single(); // Assuming we insert one row
-
-            if (logError) {
-                console.error(
-                    `Error logging stock transaction for item ${itemId}:`,
-                    logError
-                );
-                // Decide if this should cause the entire operation to fail
-                // For now, we'll return success but log the error
-                // return createErrorResponse("Failed to log stock transaction after update", 500);
-            }
-
-            // Fetch the final item details AFTER the update and log
-            const { data: finalItemData, error: finalFetchError } =
-                await supabase
-                    .from("InventoryItems")
-                    .select(`*, categories(id, name)`)
-                    .eq("id", itemId)
-                    .single();
-
-            if (finalFetchError || !finalItemData) {
-                console.warn(
-                    "Could not fetch item details after successful stock adjustment."
-                );
-                // Return success but without the updated item details
-                return NextResponse.json({
-                    message: `Stock adjusted successfully via ${transactionType}, but failed to fetch final state.`,
-                    newQuantity: finalQuantity, // Return the quantity confirmed by the update
-                });
-            }
-
-            // Prepare item data for response (similar to purchase branch)
-            const transformedFinalItem = {
-                ...finalItemData,
-                category_name:
-                    finalItemData.categories?.name || "Uncategorized",
-                categories: undefined,
-            };
-
-            return NextResponse.json({
-                message: `Stock adjusted successfully via ${transactionType}`,
-                newQuantity: transformedFinalItem.stock_quantity, // Use quantity from final fetched item
-                item: transformedFinalItem, // Return updated item data
-            });
+            // Should not happen if validation is correct, but good practice
+            return createErrorResponse(
+                `Unsupported transaction type: ${transactionType}`,
+                400
+            );
         }
+
+        // 5. Prepare parameters for the RPC call (match SQL function signature)
+        const rpcParams = {
+            p_item_id: itemId,
+            p_quantity_change: quantityChange, // Use the signed quantity change
+            p_transaction_type:
+                transactionType as StockAdjustmentTransactionType, // Ensure type matches DB enum if needed
+            p_user_id: userId,
+            p_transaction_date:
+                date instanceof Date
+                    ? date.toISOString()
+                    : new Date(date).toISOString(), // Ensure ISO string
+            p_reason: reason || undefined, // Use undefined instead of null
+            p_reference_number: referenceNumber || undefined, // Use undefined instead of null
+            // Pass prices based on context (RPC function might ignore irrelevant ones)
+            p_purchase_price: purchasePrice ?? undefined, // Use undefined instead of null
+            p_selling_price: sellingPrice ?? undefined, // Use undefined instead of null
+            p_total_price: totalPrice ?? undefined, // Use undefined instead of null
+        };
+
+        // 6. Call the single RPC function
+        console.log(`Calling adjust_stock RPC with params:`, rpcParams); // Debug log
+        const { data: rpcResult, error: rpcError } = await supabase
+            .rpc("adjust_stock", rpcParams)
+            .select()
+            .single(); // Expecting a single updated item row back
+
+        if (rpcError) {
+            console.error(
+                `Error calling adjust_stock RPC for item ${itemId}:`,
+                rpcError
+            );
+            // Check for specific database exceptions (like insufficient stock)
+            if (rpcError.message.includes("Insufficient stock")) {
+                return createErrorResponse(
+                    "Insufficient stock",
+                    400,
+                    rpcError.details
+                );
+            }
+            if (rpcError.message.includes("not found")) {
+                return createErrorResponse(
+                    "Item not found",
+                    404,
+                    rpcError.details
+                );
+            }
+            // Generic error for others
+            return createErrorResponse(
+                "Failed to adjust stock",
+                500,
+                rpcError.message // Provide DB error message for debugging
+            );
+        }
+
+        if (!rpcResult) {
+            console.error(
+                `adjust_stock RPC for item ${itemId} returned no data.`
+            );
+            return createErrorResponse(
+                "Failed to retrieve item data after adjustment",
+                500
+            );
+        }
+
+        // 7. Process the successful result (optional: fetch category name if needed)
+        const { data: categoryData, error: categoryError } = await supabase
+            .from("categories")
+            .select("name")
+            .eq("id", rpcResult.category_id)
+            .maybeSingle();
+
+        if (categoryError) {
+            console.warn(
+                `Could not fetch category name for item ${itemId} after adjustment: ${categoryError.message}`
+            );
+        }
+
+        const transformedItem = {
+            ...rpcResult,
+            category_name: categoryData?.name || "Uncategorized",
+            // categories: undefined, // Remove if categories relation was included in RPC return type accidentally
+        };
+
+        // 8. Return success response
+        return NextResponse.json({
+            message: "Stock adjusted successfully",
+            newQuantity: transformedItem.stock_quantity, // Get the actual new quantity from DB
+            item: transformedItem, // Return the full updated item details
+        });
     } catch (error: unknown) {
         console.error("Unexpected error adjusting stock:", error);
         return createErrorResponse(

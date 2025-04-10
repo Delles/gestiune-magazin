@@ -258,6 +258,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_stock: {
+        Args: {
+          p_item_id: string
+          p_quantity_change: number
+          p_transaction_type: Database["public"]["Enums"]["transaction_type"]
+          p_user_id: string
+          p_transaction_date?: string
+          p_reason?: string
+          p_reference_number?: string
+          p_purchase_price?: number
+          p_selling_price?: number
+          p_total_price?: number
+        }
+        Returns: {
+          id: string
+          item_name: string
+          category_id: string
+          unit: string
+          initial_purchase_price: number
+          selling_price: number
+          stock_quantity: number
+          reorder_point: number
+          description: string
+          created_at: string
+          updated_at: string
+          last_purchase_price: number
+          average_purchase_price: number
+          user_id: string
+        }[]
+      }
       record_item_purchase: {
         Args: {
           p_item_id: string
