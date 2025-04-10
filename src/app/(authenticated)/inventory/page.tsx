@@ -43,7 +43,10 @@ async function getInventoryStats() {
 }
 
 export default async function InventoryPage() {
+    // Restore the original data fetching
     const stats = await getInventoryStats();
+    // Remove the temporary default stats
+    // const stats = { totalItems: 0, lowStockCount: 0, outOfStockCount: 0 };
 
     return (
         <div className="space-y-6">

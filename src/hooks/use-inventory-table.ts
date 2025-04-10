@@ -12,6 +12,7 @@ import {
     ColumnFiltersState,
     RowSelectionState,
     VisibilityState,
+    PaginationState,
     Row,
     // Table, // Removed unused import
 } from "@tanstack/react-table";
@@ -51,6 +52,10 @@ export function useInventoryTable({
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
         {}
     );
+    const [pagination, setPagination] = useState<PaginationState>({
+        pageIndex: 0,
+        pageSize: 10, // Default page size, adjust as needed
+    });
     const [density, setDensity] = useState<Density>("normal");
 
     // Custom Filter State
@@ -271,14 +276,17 @@ export function useInventoryTable({
             globalFilter: debouncedGlobalFilter,
             rowSelection,
             columnVisibility,
+            pagination,
         },
         enableRowSelection: true,
         onRowSelectionChange: setRowSelection,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: handleVisibilityChange, // Use the persisting handler
+        onPaginationChange: setPagination,
         initialState: { pagination: { pageSize: 10 } }, // Default page size
         onGlobalFilterChange: setGlobalFilter,
+        autoResetPageIndex: false,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
@@ -360,6 +368,34 @@ export function useInventoryTable({
     // Extract columnFilters from state to satisfy exhaustive-deps
     // const { columnFilters: tableColumnFilters } = table.getState(); // Removed as unnecessary dependency
 
+    // --- Effects (Post-Table Initialization) ---
+
+    // Effect to reset page index when filters/data change the page count
+    useEffect(() => {
+        // Ensure table instance is available (needed for getPageCount)
+        if (!table) return;
+
+        const pageCount = table.getPageCount(); // Get the total number of pages based on current filter/data
+        const currentPageIndex = pagination.pageIndex;
+
+        // console.log(`Pagination Effect Check: Current Index: ${currentPageIndex}, Page Count: ${pageCount}`);
+
+        if (pageCount > 0 && currentPageIndex >= pageCount) {
+            // console.log(`Resetting page index from ${currentPageIndex} to 0 (out of bounds) via setPagination`);
+            // Reset to the first page if the current index is out of bounds
+            // Use the state setter instead of directly calling table method
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+        } else if (pageCount === 0 && currentPageIndex !== 0) {
+            // console.log(`Resetting page index from ${currentPageIndex} to 0 (no pages) via setPagination`);
+            // If there are no pages (e.g., no results after filtering), reset index to 0
+            // Use the state setter instead of directly calling table method
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+        }
+
+        // Dependencies: The table instance (for getPageCount), the controlled page index state,
+        // and the state setter function itself.
+    }, [table, pagination.pageIndex, setPagination]); // Added setPagination to dependencies
+
     return {
         table,
         finalFilteredRows, // Use this for rendering the table body
@@ -408,5 +444,19 @@ export function useInventoryTable({
         // Loading states passed through
         deleteMutationIsPending,
         updateReorderPointMutationIsPending,
+
+        // Derived/Computed Values
+        pagination,
+        setPagination, // Ensure setter is returned if not already
+        selectedRowCount: finalFilteredRows.length,
+        hasSelectedRows: finalFilteredRows.length > 0,
+        canDeleteSelected:
+            finalFilteredRows.length > 0 && !deleteMutationIsPending,
+        isFiltered:
+            columnFilters.length > 0 ||
+            globalFilter !== "" ||
+            stockValueRange.min !== null ||
+            stockValueRange.max !== null ||
+            reorderPointFilter !== null,
     };
 }
