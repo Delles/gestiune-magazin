@@ -10,7 +10,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
-import { useState, useMemo, type HTMLAttributes } from "react";
+import {
+    useState,
+    useMemo,
+    useRef,
+    useEffect,
+    type HTMLAttributes,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -73,6 +79,14 @@ export function UpdatePasswordForm({
     const [updateError, setUpdateError] = useState<string | null>(null);
     const router = useRouter();
     const supabase = useMemo(() => createClient(), []);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     // Initialize form with Zod schema validation
     const form = useForm<UpdatePasswordFormValues>({
@@ -98,16 +112,40 @@ export function UpdatePasswordForm({
                 password: values.password,
             });
 
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log(
+                        "Component unmounted before password update response handling."
+                    );
+                }
+                return;
+            }
+
             if (error) {
                 setUpdateError(error.message);
             } else {
                 // Redirect to login page with success parameter
                 router.push("/login?reset=success");
             }
-        } catch {
-            setUpdateError("An unexpected error occurred. Please try again.");
+        } catch (error) {
+            console.error("Unexpected error during password update:", error);
+            if (isMountedRef.current) {
+                setUpdateError(
+                    "An unexpected error occurred. Please try again."
+                );
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handling password update catch block."
+                );
+            }
         } finally {
-            setIsSubmitting(false);
+            if (isMountedRef.current) {
+                setIsSubmitting(false);
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before password update finally block."
+                );
+            }
         }
     };
 

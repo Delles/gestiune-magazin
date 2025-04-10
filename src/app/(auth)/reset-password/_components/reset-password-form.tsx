@@ -12,7 +12,13 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useMemo, type HTMLAttributes } from "react";
+import {
+    useState,
+    useMemo,
+    useRef,
+    useEffect,
+    type HTMLAttributes,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -57,9 +63,17 @@ export function ResetPasswordForm({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [resetError, setResetError] = useState<string | null>(null);
     const [resetSuccess, setResetSuccess] = useState(false);
+    const isMountedRef = useRef(true);
 
     // Memoize the Supabase client
     const supabase = useMemo(() => createClient(), []);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     // Initialize react-hook-form with Zod validation
     const form = useForm<ResetPasswordFormValues>({
@@ -88,15 +102,42 @@ export function ResetPasswordForm({
                 }
             );
 
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log(
+                        "Component unmounted before password reset response handling."
+                    );
+                }
+                return;
+            }
+
             if (error) {
                 setResetError(error.message);
             } else {
                 setResetSuccess(true);
             }
-        } catch {
-            setResetError("An unexpected error occurred. Please try again.");
+        } catch (error) {
+            console.error(
+                "Unexpected error during password reset request:",
+                error
+            );
+            if (isMountedRef.current) {
+                setResetError(
+                    "An unexpected error occurred. Please try again."
+                );
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handling password reset catch block."
+                );
+            }
         } finally {
-            setIsSubmitting(false);
+            if (isMountedRef.current) {
+                setIsSubmitting(false);
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before password reset finally block."
+                );
+            }
         }
     };
 

@@ -1,7 +1,7 @@
 // src/app/(authenticated)/settings/categories/_components/categories-list.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
@@ -128,15 +128,23 @@ async function deleteCategory(
 export function CategoriesList() {
     const queryClient = useQueryClient();
     const supabase = createClient();
-    const { session, isLoading: isAuthLoading } = useAuth(); // <--- GET AUTH STATE
+    const { session, isLoading: isAuthLoading } = useAuth();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(
         null
     );
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // State for delete dialog
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
         null
-    ); // State for category to delete
+    );
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     const {
         data: categories,
@@ -159,6 +167,14 @@ export function CategoriesList() {
             }
         },
         onSuccess: (_, variables) => {
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log(
+                        "Component unmounted before create/update onSuccess."
+                    );
+                }
+                return;
+            }
             toast.success(
                 `Category "${variables.name}" ${
                     variables.id ? "updated" : "created"
@@ -169,6 +185,14 @@ export function CategoriesList() {
             setEditingCategory(null);
         },
         onError: (error) => {
+            if (
+                !isMountedRef.current &&
+                process.env.NODE_ENV === "development"
+            ) {
+                console.log(
+                    "Component unmounted before create/update onError (toast only)."
+                );
+            }
             toast.error(error.message || "An error occurred.");
         },
     });
@@ -176,14 +200,27 @@ export function CategoriesList() {
     const deleteMutation = useMutation({
         mutationFn: (id: string) => deleteCategory(supabase, id),
         onSuccess: () => {
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log("Component unmounted before delete onSuccess.");
+                }
+                return;
+            }
             toast.success("Category deleted successfully!");
             queryClient.invalidateQueries({ queryKey: ["categories"] });
-            setIsDeleteDialogOpen(false); // Close delete dialog on success
+            setIsDeleteDialogOpen(false);
             setCategoryToDelete(null);
         },
         onError: (error) => {
+            if (
+                !isMountedRef.current &&
+                process.env.NODE_ENV === "development"
+            ) {
+                console.log(
+                    "Component unmounted before delete onError (toast only)."
+                );
+            }
             toast.error(error.message || "Failed to delete category.");
-            // Optionally keep dialog open on error: setIsDeleteDialogOpen(true);
         },
     });
 
@@ -204,15 +241,31 @@ export function CategoriesList() {
     };
 
     const handleFormDialogChange = (open: boolean) => {
+        if (!isMountedRef.current) {
+            if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handleFormDialogChange."
+                );
+            }
+            return;
+        }
         if (!open) {
-            setEditingCategory(null); // Reset editing state when dialog closes
+            setEditingCategory(null);
         }
         setIsFormOpen(open);
     };
 
     const handleDeleteDialogChange = (open: boolean) => {
+        if (!isMountedRef.current) {
+            if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handleDeleteDialogChange."
+                );
+            }
+            return;
+        }
         if (!open) {
-            setCategoryToDelete(null); // Reset delete target when dialog closes
+            setCategoryToDelete(null);
         }
         setIsDeleteDialogOpen(open);
     };

@@ -13,7 +13,13 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useEffect, useMemo, type HTMLAttributes } from "react";
+import {
+    useState,
+    useEffect,
+    useMemo,
+    useRef,
+    type HTMLAttributes,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -63,6 +69,7 @@ export function LoginForm({ className, ...props }: Readonly<LoginFormProps>) {
     const [loginError, setLoginError] = useState<string | null>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
+    const isMountedRef = useRef(true);
 
     // Memoize the Supabase client to maintain a stable reference
     const supabase = useMemo(() => createClient(), []);
@@ -98,6 +105,14 @@ export function LoginForm({ className, ...props }: Readonly<LoginFormProps>) {
         },
     });
 
+    // Add effect for cleanup
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
     /**
      * Handles form submission for user login
      *
@@ -122,6 +137,16 @@ export function LoginForm({ className, ...props }: Readonly<LoginFormProps>) {
                 email,
                 password,
             });
+
+            // Guard state updates
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log(
+                        "Component unmounted before login response handling."
+                    );
+                }
+                return; // Exit early if component unmounted
+            }
 
             if (process.env.NODE_ENV === "development") {
                 console.log("Login response:", {
@@ -149,9 +174,21 @@ export function LoginForm({ className, ...props }: Readonly<LoginFormProps>) {
             }
         } catch (error) {
             console.error("Unexpected error during login:", error);
-            setLoginError("An unexpected error occurred during login.");
+            // Guard state update
+            if (isMountedRef.current) {
+                setLoginError("An unexpected error occurred during login.");
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handling login catch block."
+                );
+            }
         } finally {
-            setIsSubmitting(false);
+            // Guard state update
+            if (isMountedRef.current) {
+                setIsSubmitting(false);
+            } else if (process.env.NODE_ENV === "development") {
+                console.log("Component unmounted before login finally block.");
+            }
         }
     };
 

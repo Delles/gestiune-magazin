@@ -13,7 +13,13 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { z } from "zod";
-import { useState, useEffect, useMemo, type HTMLAttributes } from "react";
+import {
+    useState,
+    useEffect,
+    useMemo,
+    useRef,
+    type HTMLAttributes,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
@@ -87,9 +93,17 @@ export function SignupForm({ className, ...props }: Readonly<SignupFormProps>) {
     const [showPasswordRequirements, setShowPasswordRequirements] =
         useState(false);
     const router = useRouter();
+    const isMountedRef = useRef(true);
 
     // Memoize the Supabase client
     const supabase = useMemo(() => createClient(), []);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     /**
      * Log authentication status on component mount (development only)
@@ -138,6 +152,15 @@ export function SignupForm({ className, ...props }: Readonly<SignupFormProps>) {
                 password,
             });
 
+            if (!isMountedRef.current) {
+                if (process.env.NODE_ENV === "development") {
+                    console.log(
+                        "Component unmounted before signup response handling."
+                    );
+                }
+                return;
+            }
+
             if (error) {
                 console.error("Signup error:", {
                     message: error.message,
@@ -155,9 +178,19 @@ export function SignupForm({ className, ...props }: Readonly<SignupFormProps>) {
             }
         } catch (error) {
             console.error("Unexpected error during signup:", error);
-            setSignupError("An unexpected error occurred during signup.");
+            if (isMountedRef.current) {
+                setSignupError("An unexpected error occurred during signup.");
+            } else if (process.env.NODE_ENV === "development") {
+                console.log(
+                    "Component unmounted before handling signup catch block."
+                );
+            }
         } finally {
-            setIsSubmitting(false);
+            if (isMountedRef.current) {
+                setIsSubmitting(false);
+            } else if (process.env.NODE_ENV === "development") {
+                console.log("Component unmounted before signup finally block.");
+            }
         }
     };
 
