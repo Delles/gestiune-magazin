@@ -9,7 +9,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { StockTransaction } from "../../types/types"; // Adjusted path based on expected location
+import { Tables } from "@/types/supabase"; // Import Supabase types
 import { format } from "date-fns"; // Use date-fns as per rules
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ const formatCurrency = (value: number | null | undefined) => {
 // Define the expected shape for transaction data needed by this component
 // We only expect purchase-related transactions here
 type PurchaseTransaction = Pick<
-    StockTransaction,
+    Tables<"StockTransactions">, // Use Supabase table type
     "id" | "created_at" | "purchase_price"
 >;
 

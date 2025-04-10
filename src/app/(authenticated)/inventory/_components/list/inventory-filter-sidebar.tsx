@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Category } from "../../types/types";
+import { Tables } from "@/types/supabase";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -26,7 +26,7 @@ export type StockValueRangeFilter = {
 export type ReorderPointFilter = boolean | null; // null = any, true = yes, false = no
 
 interface InventoryFilterSidebarProps {
-    categories: Category[];
+    categories: Tables<"categories">[];
     categoryFilterValue: string[];
     stockFilterValue: string[];
     stockValueRange: StockValueRangeFilter;

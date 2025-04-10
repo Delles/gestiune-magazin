@@ -20,7 +20,9 @@ export type StoreInfoFormValues = z.infer<typeof storeInfoSchema>;
 
 // Schema for category settings
 export const categorySchema = z.object({
+    id: z.string().uuid().optional(), // Add optional id for updates
     name: z.string().min(1, "Category name is required"),
+    description: z.string().optional().nullable(), // Add optional description
 });
 
 // Type for category form values, derived from the schema

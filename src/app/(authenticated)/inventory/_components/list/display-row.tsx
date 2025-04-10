@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Pencil, SlidersHorizontal, Target, Trash2 } from "lucide-react"; // Updated icons
 import { cn } from "@/lib/utils";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import type { InventoryItem } from "../../types/types"; // Import type
+import type { InventoryItemWithCategoryName } from "@/hooks/use-inventory-table";
 import {
     Popover,
     PopoverContent,
@@ -66,17 +66,17 @@ ActionTooltipButton.displayName = "ActionTooltipButton";
 
 // --- Props Interface ---
 interface DisplayRowProps {
-    row: Row<InventoryItem>;
+    row: Row<InventoryItemWithCategoryName>; // Use extended type
     density: "compact" | "normal" | "comfortable";
     router: AppRouterInstance;
-    setAdjustingStockItem: (item: InventoryItem | null) => void;
+    setAdjustingStockItem: (item: InventoryItemWithCategoryName | null) => void; // Use extended type
     handleEditClick: (itemId: string) => void;
     // Update props for Popover handling
     reorderPointItemId: string | null;
     setReorderPointItemId: (id: string | null) => void;
     handleSaveReorderPoint: (newPoint: number | null) => void;
     isSavingReorderPoint: boolean;
-    handleDeleteItemClick: (item: InventoryItem) => void;
+    handleDeleteItemClick: (item: InventoryItemWithCategoryName) => void; // Use extended type
 }
 
 // --- Main Component ---

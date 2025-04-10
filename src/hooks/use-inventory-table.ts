@@ -14,22 +14,23 @@ import {
     VisibilityState,
     PaginationState,
     Row,
-    // Table, // Removed unused import
 } from "@tanstack/react-table";
 import { useDebounce } from "@/hooks/use-debounce";
-import {
-    InventoryItem,
-    Category,
-} from "@/app/(authenticated)/inventory/types/types";
+import type { Tables } from "@/types/supabase"; // Added Supabase types import
 import { columns as defaultColumns } from "@/app/(authenticated)/inventory/_components/list/inventory-columns"; // Import columns definition
+
+// Define the extended type matching the data structure used in the table
+export type InventoryItemWithCategoryName = Tables<"InventoryItems"> & {
+    category_name: string | null; // Assuming API/data hook provides this
+};
 
 export type Density = "compact" | "normal" | "comfortable";
 export type StockValueRangeFilter = { min: number | null; max: number | null };
 export type ReorderPointFilter = boolean | null; // true = has reorder point, null = any
 
 interface UseInventoryTableProps {
-    inventoryItems: InventoryItem[];
-    categories: Category[];
+    inventoryItems: InventoryItemWithCategoryName[]; // Updated type
+    categories: Tables<"categories">[]; // Updated type
     deleteMutationIsPending: boolean; // Pass mutation state for disabling actions
     updateReorderPointMutationIsPending: boolean;
 }
@@ -67,13 +68,12 @@ export function useInventoryTable({
     // UI State (Dialogs, Editing, Popovers)
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [adjustingStockItem, setAdjustingStockItem] =
-        useState<InventoryItem | null>(null);
+        useState<InventoryItemWithCategoryName | null>(null); // Updated type
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleteSingleItemDialogOpen, setIsDeleteSingleItemDialogOpen] =
         useState(false);
-    const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(
-        null
-    );
+    const [deletingItem, setDeletingItem] =
+        useState<InventoryItemWithCategoryName | null>(null); // Updated type
     const [reorderPointItemId, setReorderPointItemId] = useState<string | null>(
         null
     ); // For the popover trigger
@@ -159,70 +159,16 @@ export function useInventoryTable({
         setReorderPointFilter(checked ? true : null);
     }, []);
 
-    // --- Table Instance (initialized later) ---
-    // Placeholder for table instance to resolve dependency cycle in useCallback definitions below
-    // We will properly define `table` after the handlers that depend on it.
-    let tableInstance: ReturnType<typeof useReactTable<InventoryItem>> | null =
-        null;
-
-    // Standard Filter Handlers (using table instance)
-    const handleCategoryFilterChange = useCallback(
-        (categoryId: string, checked: boolean | string) => {
-            if (!tableInstance) return;
-            const category = categories.find((c) => c.id === categoryId);
-            if (!category) return;
-            const categoryName = category.name;
-
-            const currentFilterValue = (tableInstance
-                .getColumn("category_name")
-                ?.getFilterValue() ?? []) as string[];
-
-            let newValues: string[];
-            if (checked) {
-                newValues = [...currentFilterValue, categoryName];
-            } else {
-                newValues = currentFilterValue.filter(
-                    (name) => name !== categoryName
-                );
-            }
-            tableInstance
-                .getColumn("category_name")
-                ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
-        },
-        [categories, tableInstance] // Dependency: categories and the table instance
-    );
-
-    const handleStockFilterChange = useCallback(
-        (statusValue: string, checked: boolean | string) => {
-            if (!tableInstance) return;
-            const currentFilterValue = (tableInstance
-                .getColumn("stock_quantity")
-                ?.getFilterValue() ?? []) as string[];
-
-            let newValues: string[];
-            if (checked) {
-                newValues = [...currentFilterValue, statusValue];
-            } else {
-                newValues = currentFilterValue.filter(
-                    (val) => val !== statusValue
-                );
-            }
-            tableInstance
-                .getColumn("stock_quantity")
-                ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
-        },
-        [tableInstance] // Dependency: table instance
-    );
-
+    // --- Handlers that DO NOT depend on the table instance ---
+    // Move these back before useReactTable
     const clearAllFilters = useCallback(() => {
         setColumnFilters([]);
         setGlobalFilter("");
         setStockValueRange({ min: null, max: null });
         setReorderPointFilter(null);
-        router.push("/inventory"); // Assuming '/inventory' is the base path without filters
+        router.push("/inventory");
     }, [router]);
 
-    // Row Action Handlers
     const handleEditClick = useCallback((itemId: string) => {
         setEditingRowId(itemId);
     }, []);
@@ -232,9 +178,7 @@ export function useInventoryTable({
     }, []);
 
     const handleSaveEdit = useCallback(() => {
-        // In a real scenario, this would likely trigger a mutation
         setEditingRowId(null);
-        // TODO: Add mutation logic if inline editing saves data
     }, []);
 
     const handleDeleteSelected = useCallback(() => {
@@ -245,18 +189,21 @@ export function useInventoryTable({
         setIsDeleteDialogOpen(false);
     }, []);
 
-    const handleDeleteItemClick = useCallback((item: InventoryItem) => {
-        setDeletingItem(item);
-        setIsDeleteSingleItemDialogOpen(true);
-    }, []);
+    const handleDeleteItemClick = useCallback(
+        (item: InventoryItemWithCategoryName) => {
+            setDeletingItem(item);
+            setIsDeleteSingleItemDialogOpen(true);
+        },
+        []
+    );
 
     const closeSingleItemDeleteDialog = useCallback(() => {
         setIsDeleteSingleItemDialogOpen(false);
-        setDeletingItem(null); // Clear item on close
+        setDeletingItem(null);
     }, []);
 
     const openStockAdjustmentDialog = useCallback(
-        (item: InventoryItem | null) => {
+        (item: InventoryItemWithCategoryName | null) => {
             setAdjustingStockItem(item);
         },
         []
@@ -267,7 +214,7 @@ export function useInventoryTable({
     }, []);
 
     // --- Table Instance Initialization ---
-    const table = useReactTable<InventoryItem>({
+    const table = useReactTable<InventoryItemWithCategoryName>({
         data: inventoryItems,
         columns: defaultColumns, // Use imported columns
         state: {
@@ -297,64 +244,111 @@ export function useInventoryTable({
         meta: {
             categories: categories,
             handleEditClick: handleEditClick,
-            handleSaveEdit: handleSaveEdit, // Placeholder save
+            handleSaveEdit: handleSaveEdit,
             handleCancelEdit: handleCancelEdit,
-            setAdjustingStockItem: openStockAdjustmentDialog, // Rename for clarity
+            setAdjustingStockItem: openStockAdjustmentDialog,
             setReorderPointItemId: setReorderPointItemId,
-            // handleSaveReorderPoint needs mutation fn passed from component
             handleDeleteItemClick: handleDeleteItemClick,
             updateReorderPointMutationIsPending:
                 updateReorderPointMutationIsPending,
             editingRowId: editingRowId,
             reorderPointItemId: reorderPointItemId,
             density: density,
-            // Potentially add updateReorderPoint mutation trigger here if needed in meta
         },
     });
 
-    // Assign the created table instance to the placeholder used in useCallback
-    // This resolves the dependency issue for handleCategoryFilterChange and handleStockFilterChange
-    tableInstance = table;
+    // --- Handlers Defined AFTER table instance is created ---
+    // These handlers depend on `table`
+    const handleCategoryFilterChange = useCallback(
+        (categoryId: string, checked: boolean | string) => {
+            if (!table) return; // Check if table is defined
+            const category = categories.find((c) => c.id === categoryId);
+            if (!category) return;
+            const categoryName = category.name;
+
+            const currentFilterValue = (table
+                .getColumn("category_name")
+                ?.getFilterValue() ?? []) as string[];
+
+            let newValues: string[];
+            if (checked) {
+                newValues = [...currentFilterValue, categoryName];
+            } else {
+                newValues = currentFilterValue.filter(
+                    (name) => name !== categoryName
+                );
+            }
+            table
+                .getColumn("category_name")
+                ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
+        },
+        [categories, table] // Dependency: categories and the table object
+    );
+
+    const handleStockFilterChange = useCallback(
+        (statusValue: string, checked: boolean | string) => {
+            if (!table) return; // Check if table is defined
+            const currentFilterValue = (table
+                .getColumn("stock_quantity")
+                ?.getFilterValue() ?? []) as string[];
+
+            let newValues: string[];
+            if (checked) {
+                newValues = [...currentFilterValue, statusValue];
+            } else {
+                newValues = currentFilterValue.filter(
+                    (val) => val !== statusValue
+                );
+            }
+            table
+                .getColumn("stock_quantity")
+                ?.setFilterValue(newValues.length > 0 ? newValues : undefined);
+        },
+        [table] // Dependency: the table object
+    );
 
     // --- Post-Filtering for Custom Logic ---
     const tanstackFilteredRows = table.getFilteredRowModel().rows;
 
     const finalFilteredRows = useMemo(() => {
-        return tanstackFilteredRows.filter((row: Row<InventoryItem>) => {
-            const item = row.original;
+        return tanstackFilteredRows.filter(
+            (row: Row<InventoryItemWithCategoryName>) => {
+                const item = row.original;
 
-            // Stock Value Filter
-            const stockValue =
-                (item.stock_quantity ?? 0) * (item.average_purchase_price ?? 0);
-            if (
-                stockValueRange.min !== null &&
-                stockValue < stockValueRange.min
-            )
-                return false;
-            if (
-                stockValueRange.max !== null &&
-                stockValue > stockValueRange.max
-            )
-                return false;
+                // Stock Value Filter
+                const stockValue =
+                    (item.stock_quantity ?? 0) *
+                    (item.average_purchase_price ?? 0);
+                if (
+                    stockValueRange.min !== null &&
+                    stockValue < stockValueRange.min
+                )
+                    return false;
+                if (
+                    stockValueRange.max !== null &&
+                    stockValue > stockValueRange.max
+                )
+                    return false;
 
-            // Has Reorder Point Filter
-            if (
-                reorderPointFilter === true &&
-                (item.reorder_point === null ||
-                    item.reorder_point === undefined)
-            )
-                return false;
-            // Add logic for reorderPointFilter === false if needed (e.g., show only items *without* a reorder point)
-            // if (reorderPointFilter === false && item.reorder_point !== null && item.reorder_point !== undefined) return false;
+                // Has Reorder Point Filter
+                if (
+                    reorderPointFilter === true &&
+                    (item.reorder_point === null ||
+                        item.reorder_point === undefined)
+                )
+                    return false;
+                // Add logic for reorderPointFilter === false if needed (e.g., show only items *without* a reorder point)
+                // if (reorderPointFilter === false && item.reorder_point !== null && item.reorder_point !== undefined) return false;
 
-            return true; // Item passes all custom filters
-        });
+                return true; // Item passes all custom filters
+            }
+        );
     }, [tanstackFilteredRows, stockValueRange, reorderPointFilter]);
 
     // --- Calculated Values ---
     const totalInventoryValue = useMemo(() => {
         return finalFilteredRows.reduce(
-            (sum: number, row: Row<InventoryItem>) => {
+            (sum: number, row: Row<InventoryItemWithCategoryName>) => {
                 const quantity = row.original.stock_quantity ?? 0;
                 const avgPrice = row.original.average_purchase_price ?? 0;
                 return sum + quantity * avgPrice;
@@ -396,6 +390,29 @@ export function useInventoryTable({
         // and the state setter function itself.
     }, [table, pagination.pageIndex, setPagination]); // Added setPagination to dependencies
 
+    // ---- Side Effects Dependent on Table Instance ----
+
+    // Remove the useEffect hook that assigned the now-removed tableInstance
+    // useEffect(() => {
+    //     tableInstance = table;
+    //     return () => {
+    //         tableInstance = null;
+    //     };
+    // }, [table]);
+
+    // Apply custom filters to the table data - This useEffect is likely redundant now
+    useEffect(() => {
+        // Ensure table instance is available
+        if (!table) return;
+
+        // We can potentially remove this useEffect entirely if its only purpose was
+        // to push these custom filters into columnFilters state, as the manual
+        // filtering in useMemo(finalFilteredRows) handles it.
+        // For now, let's just comment out the setColumnFilters call.
+    }, [stockValueRange, reorderPointFilter, table]); // Rerun when custom filters or table change
+
+    // --- Return Value ---
+
     return {
         table,
         finalFilteredRows, // Use this for rendering the table body
@@ -412,7 +429,7 @@ export function useInventoryTable({
         editingRowId,
         handleEditClick,
         handleCancelEdit,
-        handleSaveEdit, // Expose save handler
+        handleSaveEdit,
 
         // Custom Filters State & Handlers
         stockValueRange,
@@ -427,19 +444,19 @@ export function useInventoryTable({
 
         // Dialog/Popover State & Control
         isDeleteDialogOpen,
-        handleDeleteSelected, // Opens dialog
-        closeDeleteDialog, // Closes dialog
+        handleDeleteSelected,
+        closeDeleteDialog,
         isDeleteSingleItemDialogOpen,
-        deletingItem, // Item to show in dialog
-        handleDeleteItemClick, // Opens dialog
-        closeSingleItemDeleteDialog, // Closes dialog
-        adjustingStockItem, // Item for info dialog
-        openStockAdjustmentDialog, // Opens dialog
-        closeStockAdjustmentDialog, // Closes dialog
+        deletingItem,
+        handleDeleteItemClick,
+        closeSingleItemDeleteDialog,
+        adjustingStockItem,
+        openStockAdjustmentDialog,
+        closeStockAdjustmentDialog,
 
         // Reorder Point Popover Control
         reorderPointItemId,
-        setReorderPointItemId, // Allows DisplayRow to control popover visibility trigger
+        setReorderPointItemId,
 
         // Loading states passed through
         deleteMutationIsPending,
@@ -447,7 +464,7 @@ export function useInventoryTable({
 
         // Derived/Computed Values
         pagination,
-        setPagination, // Ensure setter is returned if not already
+        setPagination,
         selectedRowCount: finalFilteredRows.length,
         hasSelectedRows: finalFilteredRows.length > 0,
         canDeleteSelected:

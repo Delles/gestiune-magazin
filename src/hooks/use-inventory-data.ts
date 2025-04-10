@@ -1,16 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useEffect } from "react";
 import { toast } from "sonner";
-import {
-    InventoryItem,
-    Category,
-} from "@/app/(authenticated)/inventory/types/types";
+import type { Tables } from "@/types/supabase";
 import {
     getInventoryItems,
     getCategories,
     deleteInventoryItems,
     updateItemReorderPoint,
 } from "@/app/(authenticated)/inventory/_data/api";
+
+// Define the extended type for inventory items including the category name
+type InventoryItemWithCategoryName = Tables<"InventoryItems"> & {
+    category_name: string | null; // Assuming API provides this
+};
 
 export function useInventoryData() {
     const queryClient = useQueryClient();
@@ -27,7 +29,7 @@ export function useInventoryData() {
         data: inventoryItems = [],
         isLoading: isLoadingItems,
         error: itemsError,
-    } = useQuery<InventoryItem[], Error>({
+    } = useQuery<InventoryItemWithCategoryName[], Error>({
         queryKey: ["inventoryItems"],
         queryFn: getInventoryItems,
     });
@@ -36,7 +38,7 @@ export function useInventoryData() {
         data: categories = [],
         isLoading: isLoadingCategories,
         error: categoriesError,
-    } = useQuery<Category[], Error>({
+    } = useQuery<Tables<"categories">[], Error>({
         queryKey: ["categories"],
         queryFn: getCategories,
     });

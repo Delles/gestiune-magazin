@@ -86,9 +86,11 @@ export function StoreInfoForm() {
         mutationFn: saveStoreSettings, // Use the API helper which handles upsert
         onSuccess: (data) => {
             toast.success("Store information saved successfully!");
-            // Update query data directly if needed, or just invalidate
-            // queryClient.setQueryData(["storeSettings"], data);
-            queryClient.invalidateQueries({ queryKey: ["storeSettings"] });
+            // Update the query cache directly with the fresh data
+            queryClient.setQueryData(["storeSettings"], data);
+            // Invalidation might still be useful if other queries depend on this,
+            // but setQueryData provides the immediate update.
+            // queryClient.invalidateQueries({ queryKey: ["storeSettings"] });
         },
         onError: (error) => {
             toast.error(error.message || "Failed to save settings.");

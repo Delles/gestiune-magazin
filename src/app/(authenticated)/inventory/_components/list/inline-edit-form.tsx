@@ -30,12 +30,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, X, DollarSign, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
-import type { Category, InventoryItem } from "../../types/types"; // Import types
+import { Tables } from "@/types/supabase"; // Use Supabase types
 import { updateInventoryItem } from "../../_data/api";
 // --- Props Interface ---
 interface InlineEditFormRowProps {
-    item: InventoryItem;
-    categories: Category[];
+    item: Tables<"InventoryItems">; // Use Supabase type
+    categories: Tables<"categories">[]; // Use Supabase type
     onSave: () => void;
     onCancel: () => void;
     density: "compact" | "normal" | "comfortable";

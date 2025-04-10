@@ -63,27 +63,6 @@ export type Database = {
         }
         Relationships: []
       }
-      CurrencySettings: {
-        Row: {
-          created_at: string
-          currency_code: string
-          id: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          currency_code?: string
-          id?: never
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          currency_code?: string
-          id?: never
-          updated_at?: string
-        }
-        Relationships: []
-      }
       InventoryItems: {
         Row: {
           average_purchase_price: number | null
@@ -233,7 +212,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          id?: never
+          id: number
           logo_url?: string | null
           store_address?: string | null
           store_email?: string | null
@@ -243,7 +222,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          id?: never
+          id?: number
           logo_url?: string | null
           store_address?: string | null
           store_email?: string | null
@@ -271,22 +250,7 @@ export type Database = {
           p_selling_price?: number
           p_total_price?: number
         }
-        Returns: {
-          id: string
-          item_name: string
-          category_id: string
-          unit: string
-          initial_purchase_price: number
-          selling_price: number
-          stock_quantity: number
-          reorder_point: number
-          description: string
-          created_at: string
-          updated_at: string
-          last_purchase_price: number
-          average_purchase_price: number
-          user_id: string
-        }[]
+        Returns: number
       }
       record_item_purchase: {
         Args: {

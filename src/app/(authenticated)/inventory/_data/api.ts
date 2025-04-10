@@ -1,11 +1,18 @@
 import { toast } from "sonner";
-import { InventoryItem, Category, StockTransaction } from "../types/types"; // Uses the existing type path
+import type { Tables } from "@/types/supabase"; // Added Supabase types import
 import type {
     InventoryItemCreateFormValues,
     InventoryItemUpdateFormValues,
 } from "@/lib/validation/inventory-schemas";
 
-export async function getInventoryItems(): Promise<InventoryItem[]> {
+// Define the extended type matching the expected API response shape
+type InventoryItemWithCategoryName = Tables<"InventoryItems"> & {
+    category_name: string | null;
+};
+
+export async function getInventoryItems(): Promise<
+    InventoryItemWithCategoryName[]
+> {
     const response = await fetch("/api/inventory/items");
     if (!response.ok) {
         const errorText = await response.text();
@@ -16,12 +23,12 @@ export async function getInventoryItems(): Promise<InventoryItem[]> {
         );
     }
     const data = await response.json();
-    // Add type assertion or validation if needed, though fetch returns any/unknown
-    return data as InventoryItem[];
+    // Assume API returns data matching InventoryItemWithCategoryName
+    return data as InventoryItemWithCategoryName[];
 }
 
-export async function getCategories(): Promise<Category[]> {
-    const response = await fetch("/api/categories");
+export async function getCategories(): Promise<Tables<"categories">[]> {
+    const response = await fetch("/api/categories/");
     if (!response.ok) {
         const errorText = await response.text();
         throw new Error(
@@ -32,7 +39,7 @@ export async function getCategories(): Promise<Category[]> {
     }
     const data = await response.json();
     // Add type assertion or validation if needed
-    return data as Category[];
+    return data as Tables<"categories">[];
 }
 
 /**
@@ -87,7 +94,9 @@ export async function deleteInventoryItems(itemIds: string[]): Promise<void> {
 }
 
 // Function to fetch an inventory item by ID
-export async function getInventoryItem(id: string): Promise<InventoryItem> {
+export async function getInventoryItem(
+    id: string
+): Promise<InventoryItemWithCategoryName> {
     const response = await fetch(`/api/inventory/items/${id}`);
     if (!response.ok) {
         if (response.status === 404) throw new Error("Item not found");
@@ -100,7 +109,7 @@ export async function getInventoryItem(id: string): Promise<InventoryItem> {
         );
     }
     const data = await response.json();
-    return data as InventoryItem; // Assuming API returns correct shape
+    return data as InventoryItemWithCategoryName; // Assuming API returns correct shape
 }
 
 // Function to create a new inventory item
@@ -143,7 +152,7 @@ export async function updateInventoryItem(
 // Function to fetch stock transactions for an item
 export async function getStockTransactions(
     itemId: string
-): Promise<StockTransaction[]> {
+): Promise<Tables<"StockTransactions">[]> {
     const response = await fetch(`/api/inventory/items/${itemId}/transactions`);
     if (!response.ok) {
         const errorText = await response.text();
@@ -154,7 +163,7 @@ export async function getStockTransactions(
         );
     }
     const data = await response.json();
-    return data as StockTransaction[]; // Assuming API returns correct shape
+    return data as Tables<"StockTransactions">[]; // Assuming API returns correct shape
 }
 
 // Function to update only the reorder point for an item

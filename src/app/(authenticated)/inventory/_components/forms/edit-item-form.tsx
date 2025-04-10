@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import type { Category, InventoryItem } from "../../types/types"; // Import types
+import { Tables } from "@/types/supabase"; // Use Supabase types
 import {
     getCategories,
     getInventoryItem,
@@ -60,7 +60,7 @@ export default function EditItemForm({
 
     // Fetch categories
     const { data: categories = [], isLoading: isLoadingCategories } = useQuery<
-        Category[] // Ensure this uses the imported Category
+        Tables<"categories">[] // Use Supabase type
     >({
         queryKey: ["categories"],
         queryFn: getCategories, // Use imported function
@@ -71,7 +71,7 @@ export default function EditItemForm({
         data: itemData,
         isLoading: isLoadingItem,
         error: itemError,
-    } = useQuery<InventoryItem>({
+    } = useQuery<Tables<"InventoryItems">>({
         queryKey: ["inventoryItem", itemId],
         queryFn: () => getInventoryItem(itemId), // Use imported function
         enabled: !!itemId,

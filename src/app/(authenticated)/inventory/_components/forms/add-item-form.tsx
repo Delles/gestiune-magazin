@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import type { Category } from "../../types/types"; // Import type
+import { Tables } from "@/types/supabase"; // Use Supabase types
 import { getCategories, createInventoryItem } from "../../_data/api"; // Import API functions
 
 interface AddItemFormProps {
@@ -50,7 +50,7 @@ export default function AddItemForm({ onSuccess, onClose }: AddItemFormProps) {
     const queryClient = useQueryClient();
 
     const { data: categories = [], isLoading: isLoadingCategories } = useQuery<
-        Category[]
+        Tables<"categories">[]
     >({
         queryKey: ["categories"],
         queryFn: getCategories,

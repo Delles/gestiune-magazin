@@ -61,9 +61,10 @@ export function CategoriesList() {
     // Removed: const supabase = createClient();
     const { session, isLoading: isAuthLoading } = useAuth();
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState<Category | null>(
-        null
-    );
+    // Comment out unused state for editing
+    // const [editingCategory, setEditingCategory] = useState<Category | null>(
+    //     null
+    // );
     // Keep delete state commented out but syntactically valid
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
@@ -96,19 +97,23 @@ export function CategoriesList() {
             toast.success(`Category "${data.name}" created successfully!`);
             queryClient.invalidateQueries({ queryKey: ["categories"] });
             setIsFormOpen(false);
-            setEditingCategory(null);
+            // Comment out reset related to editing state
+            // setEditingCategory(null);
         },
         onError: (error) => {
             if (!isMountedRef.current) return;
             toast.error(error.message || "Failed to create category.");
+            // Comment out reset related to editing state
+            // setEditingCategory(null);
         },
     });
 
     // Keep delete mutation commented out but syntactically valid
     const deleteMutation = useMutation<void, Error, string>({
-        mutationFn: async (id: string) => {
+        mutationFn: async () => {
             throw new Error("Delete not implemented");
             // TODO: Replace with actual deleteCategory API call
+            // When implemented, add id back: mutationFn: async (id: string) => {
             // await deleteCategory(id);
         },
         onSuccess: () => {
@@ -125,10 +130,10 @@ export function CategoriesList() {
     });
 
     // Keep edit handler commented out but syntactically valid
-    const handleOpenEditDialog = (category: Category) => {
-        setEditingCategory(category);
-        setIsFormOpen(true);
-    };
+    // const handleOpenEditDialog = (category: Category) => {
+    //     setEditingCategory(category);
+    //     setIsFormOpen(true);
+    // };
 
     // Keep delete handler commented out but syntactically valid
     const handleOpenDeleteDialog = (category: Category) => {
@@ -147,7 +152,8 @@ export function CategoriesList() {
         if (!isMountedRef.current) return;
         setIsFormOpen(open);
         if (!open) {
-            setEditingCategory(null);
+            // Comment out reset related to editing state
+            // setEditingCategory(null);
         }
     };
 
@@ -204,7 +210,8 @@ export function CategoriesList() {
                     <DialogTrigger asChild>
                         <Button
                             size="sm"
-                            onClick={() => setEditingCategory(null)} // Ensure reset when opening for create
+                            // Comment out reset related to editing state
+                            // onClick={() => setEditingCategory(null)} // Ensure reset when opening for create
                         >
                             <PlusCircle className="mr-2 h-4 w-4" /> Add New
                             Category
@@ -272,11 +279,7 @@ export function CategoriesList() {
                                                 </DropdownMenuLabel>
                                                 {/* Keep edit/delete commented but valid */}
                                                 <DropdownMenuItem
-                                                    onClick={() =>
-                                                        handleOpenEditDialog(
-                                                            category
-                                                        )
-                                                    }
+                                                    // Removed onClick as it's not needed for disabled item
                                                     disabled // Disable until implemented
                                                 >
                                                     Edit

@@ -29,11 +29,12 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { cn, formatCurrency } from "@/lib/utils";
-import { InventoryItem } from "../../types/types"; // Keep types
-
 // Import Hooks
 import { useInventoryData } from "@/hooks/use-inventory-data";
-import { useInventoryTable } from "@/hooks/use-inventory-table";
+import {
+    useInventoryTable,
+    type InventoryItemWithCategoryName,
+} from "@/hooks/use-inventory-table";
 
 // Import Child Components
 import { InventoryTableToolbar } from "./inventory-table-toolbar";
@@ -400,7 +401,8 @@ export default function InventoryList() {
                                 finalFilteredRows.map((row) => {
                                     const item = row.original;
                                     const isEditing = editingRowId === item.id;
-                                    type TanStackRow = Row<InventoryItem>; // Keep type alias local if only used here
+                                    type TanStackRow =
+                                        Row<InventoryItemWithCategoryName>; // Use hook's type
 
                                     if (isEditing) {
                                         return (

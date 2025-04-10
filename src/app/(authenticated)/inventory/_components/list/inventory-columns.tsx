@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,13 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowUpDown, Package } from "lucide-react";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
-import { InventoryItem } from "../../types/types";
+import type { Tables } from "@/types/supabase";
 import { StockQuantityVisual } from "./StockQuantityVisual";
+
+// Define the extended type matching the data structure used in the table
+type InventoryItemWithCategoryName = Tables<"InventoryItems"> & {
+    category_name: string | null; // Assuming API/data hook provides this
+};
 
 // --- Helper Components ---
 export const SortableHeader = ({
@@ -20,7 +25,7 @@ export const SortableHeader = ({
     children,
     align = "left",
 }: {
-    column: import("@tanstack/react-table").Column<InventoryItem, unknown>; // Use unknown for value type
+    column: Column<InventoryItemWithCategoryName, unknown>;
     children: React.ReactNode;
     align?: "left" | "right";
 }) => (
@@ -38,7 +43,7 @@ export const SortableHeader = ({
 );
 
 // --- Column Definitions ---
-export const columns: ColumnDef<InventoryItem>[] = [
+export const columns: ColumnDef<InventoryItemWithCategoryName>[] = [
     {
         id: "select",
         header: ({ table }) => (

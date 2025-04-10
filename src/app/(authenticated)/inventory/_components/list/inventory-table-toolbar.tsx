@@ -35,7 +35,7 @@ import {
     Download, // Add Download icon
     ListFilter, // Icon for category filter badge
 } from "lucide-react";
-import { InventoryItem, Category } from "../../types/types";
+import { Tables } from "@/types/supabase"; // Use Supabase types
 import AddItemForm from "../forms/add-item-form";
 import { SortableHeader } from "./inventory-columns"; // Import SortableHeader
 import { cn } from "@/lib/utils"; // Import cn utility
@@ -44,6 +44,7 @@ import {
     StockValueRangeFilter,
     ReorderPointFilter,
 } from "./inventory-filter-sidebar";
+import type { InventoryItemWithCategoryName } from "@/hooks/use-inventory-table";
 
 // --- Stock Status Options (Moved from columns, as filter UI is here) ---
 const stockStatuses = [
@@ -54,8 +55,8 @@ const stockStatuses = [
 
 // Define Props
 interface InventoryTableToolbarProps {
-    table: Table<InventoryItem>;
-    categories: Category[];
+    table: Table<InventoryItemWithCategoryName>;
+    categories: Tables<"categories">[];
     density: "compact" | "normal" | "comfortable";
     handleDensityChange: (value: "compact" | "normal" | "comfortable") => void;
     globalFilter: string;
@@ -113,7 +114,9 @@ export function InventoryTableToolbar({
         (globalFilter ? 1 : 0); // Keep global filter check
 
     // Helper function to get header name for visibility toggle
-    const getHeaderName = (column: Column<InventoryItem, unknown>): string => {
+    const getHeaderName = (
+        column: Column<InventoryItemWithCategoryName, unknown>
+    ): string => {
         const headerDef = column.columnDef.header;
 
         if (typeof headerDef === "string") {
